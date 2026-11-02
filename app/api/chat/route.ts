@@ -77,7 +77,7 @@ async function askOpenAI(messages: Msg[]) {
       input: messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) })),
       max_output_tokens: 2048
     }),
-    signal: AbortSignal.timeout(60000)
+    signal: AbortSignal.timeout(35000)
   });
   const data = await readJson(response);
   if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك OpenAI."));
@@ -172,43 +172,10 @@ async function ask(provider: Provider, messages: Msg[]) {
 }
 
 async function askAuto(messages: Msg[]) {
-  const hasOpenAI = isConfigured("openai");
-  const hasClaude = isConfigured("claude");
-
-  // عند توافر المفتاحين، يعمل OpenAI وClaude بالتوازي ثم يدمج OpenAI المسودتين.
-  if (hasOpenAI && hasClaude) {
-    const [openaiResult, claudeResult] = await Promise.allSettled([
-      askOpenAI(messages),
-      askClaude(messages)
-    ]);
-    if (openaiResult.status === "fulfilled" && claudeResult.status === "fulfilled") {
-      const originalQuestion = messages[messages.length - 1]?.content || "";
-      const synthesis: Msg[] = [
-        ...messages.slice(-10),
-        {
-          role: "user",
-          content: [
-            "المطلوب: اكتب إجابة نهائية واحدة للسؤال الأصلي، بعد مراجعة المسودتين أدناه.",
-            "السؤال الأصلي: " + originalQuestion,
-            "مسودة OpenAI:\n" + openaiResult.value,
-            "مسودة Claude:\n" + claudeResult.value,
-            "ادمج نقاط القوة، واحذف التكرار، وصحح التناقضات الظاهرة دون اختراع حقائق. لا تذكر للمستخدم أنك تلقيت مسودتين، ولا تنسب معلومة إلى مصدر لم يُستخدم."
-          ].join("\n\n")
-        }
-      ];
-      try {
-        return { reply: await askOpenAI(synthesis), engine: "hybrid" };
-      } catch {
-        return { reply: openaiResult.value, engine: "openai" };
-      }
-    }
-    if (openaiResult.status === "fulfilled") return { reply: openaiResult.value, engine: "openai" };
-    if (claudeResult.status === "fulfilled") return { reply: claudeResult.value, engine: "claude" };
-    // Both primary models failed; avoid retrying them and risking duplicate charges.
-    return askFallback(messages, ["gemini", "groq"]);
-  }
-
-  return askFallback(messages, ["openai", "claude", "gemini", "groq"]);
+  // السرعة أولوية في الوضع التلقائي: استدعاء محرك أساسي واحد فقط.
+  // لا نشغّل محركين ثم استدعاء ثالثاً للدمج في كل رسالة؛ يمكن اختيار Claude يدوياً عند الحاجة.
+  const order: Provider[] = ["openai", "groq", "gemini", "claude"];
+  return askFallback(messages, order);
 }
 
 async function askFallback(messages: Msg[], order: Provider[]) {
