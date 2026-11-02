@@ -126,7 +126,12 @@ export default function Home() {
     e.preventDefault();
     const query = researchQuery.trim();
     if (query.length < 3 || researchBusy) return;
+    if (searchSources.length === 0) {
+      setResearchError(lang === "ar" ? "اختر محرك بحث واحداً على الأقل قبل بدء البحث." : "Select at least one search engine before starting.");
+      return;
+    }
     setResearchBusy(true);
+    setSearchStatuses([]);
     setResearchError("");
     setResearchAnalysis("");
     setResearchAnalysisError("");
@@ -140,6 +145,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "تعذر تنفيذ البحث الأكاديمي");
       setPapers(data.papers || []);
+      setSearchStatuses(data.sources || []);
       setResearchAnalysis(data.analysis || "");
       setResearchAnalysisError(data.analysisError || "");
       if (!data.papers?.length) setResearchError(lang === "ar" ? "لم تظهر نتائج لهذه العبارة. جرّب كلمات مفتاحية أدق." : "No results found. Try more focused keywords.");
@@ -172,6 +178,7 @@ export default function Home() {
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <header className="topbar glass">
+        <button className="tool-button language-toggle" onClick={() => setLang(lang === "ar" ? "en" : "ar")} aria-label={lang === "ar" ? "Switch language to English" : "تغيير اللغة إلى العربية"}>{lang === "ar" ? "EN" : "عربي"}</button>
         <div className="brand">
           <div className="brand-mark"><span>IB</span><i>✦</i></div>
           <div><strong>ILYES.B <em>AI</em></strong><small>{lang === "ar" ? "مساحة ذكية للمعرفة والإبداع" : "A smarter space for knowledge and creativity"}</small></div>
@@ -189,7 +196,6 @@ export default function Home() {
           </label>
           <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
           <button className="tool-button about-toggle" onClick={() => setAboutOpen(true)}>{lang === "ar" ? "ⓘ نبذة عن المنصة" : "ⓘ About"}</button>
-          <button className="tool-button" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>{lang === "ar" ? "EN" : "عربي"}</button>
           {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
         </div>
       </header>
@@ -249,7 +255,7 @@ export default function Home() {
       </section>
 
       {researchOpen && <section className="research-panel glass">
-        <div className="panel-heading"><div><span className="eyebrow">ACADEMIC DISCOVERY</span><h2>{lang === "ar" ? "البحث العلمي عبر Consensus" : "Academic search with Consensus"}</h2></div><button className="close-button" onClick={() => setResearchOpen(false)} aria-label="Close">×</button></div>
+        <div className="panel-heading"><div><span className="eyebrow">ACADEMIC DISCOVERY</span><h2>{lang === "ar" ? "البحث الأكاديمي متعدد المحركات" : "Multi-engine academic search"}</h2></div><button className="close-button" onClick={() => setResearchOpen(false)} aria-label="Close">×</button></div>
         <p>{lang === "ar" ? "اختر محركاً واحداً أو ادمج المحركات الثلاثة في بحث متزامن. تُجمع النتائج وتُزال المكررات، ثم يحلل OpenAI الدراسات المتاحة." : "Choose one engine or combine all three in a parallel search. Results are merged and deduplicated, then OpenAI analyzes the available papers."}</p>
         <div className="research-engine-select">
           <div className="research-engine-heading">
@@ -261,11 +267,10 @@ export default function Home() {
               ["consensus", "Consensus", lang === "ar" ? "بحث دلالي عن الدراسات والأدلة العلمية" : "Semantic discovery of research and evidence"],
               ["semantic_scholar", "Semantic Scholar", lang === "ar" ? "أوراق علمية ومؤلفون واستشهادات" : "Papers, authors and citations"],
               ["openalex", "OpenAlex", lang === "ar" ? "فهرس واسع للمنشورات والباحثين" : "Broad index of works and researchers"]
-            ] as [SearchSource, string, string][]).map(([id, name, description]) => <label className={"research-engine-option " + (searchSources.includes(id) ? "selected" : "")} key={id}>
-              <input type="checkbox" checked={searchSources.includes(id)} onChange={e => setSearchSources(current => e.target.checked ? [...current, id] : current.filter(x => x !== id))} />
-              <span className="research-engine-check">{searchSources.includes(id) ? "✓" : ""}</span>
+            ] as [SearchSource, string, string][]).map(([id, name, description]) => <button type="button" role="checkbox" aria-checked={searchSources.includes(id)} className={"research-engine-option " + (searchSources.includes(id) ? "selected" : "")} key={id} onClick={() => setSearchSources(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id])}>
+              <span className="research-engine-check" aria-hidden="true">{searchSources.includes(id) ? "✓" : ""}</span>
               <span className="research-engine-copy"><b>{name}</b><small>{description}</small></span>
-            </label>)}
+            </button>)}
           </div>
           <div className="research-merge-note">{lang === "ar" ? `تم اختيار ${searchSources.length} من 3 محركات` : `${searchSources.length} of 3 engines selected`}</div>
           {searchStatuses.length > 0 && <div className="research-source-status">{searchStatuses.map(source => <span className={"source-status " + source.status} key={source.id}><i />{source.name}: {source.status === "success" ? (lang === "ar" ? ` ${source.count} نتيجة` : ` ${source.count} results`) : source.status === "empty" ? (lang === "ar" ? " لا توجد نتائج" : " no results") : (lang === "ar" ? " تعذر الاتصال" : " unavailable")}</span>)}</div>}
