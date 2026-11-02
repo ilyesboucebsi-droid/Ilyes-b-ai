@@ -18,6 +18,7 @@ export default function Home() {
   const [provider, setProvider] = useState("auto");
   const [lang, setLang] = useState<"ar" | "en">("ar");
   const [busy, setBusy] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [researchOpen, setResearchOpen] = useState(false);
   const [researchQuery, setResearchQuery] = useState("");
@@ -41,6 +42,16 @@ export default function Home() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
     } finally { setBusy(false); }
+  }
+
+  async function copyAnswer(content: string, index: number) {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedIndex(index);
+      window.setTimeout(() => setCopiedIndex(current => current === index ? null : current), 1800);
+    } catch {
+      setError(lang === "ar" ? "تعذر نسخ الإجابة. تحقق من إذن الحافظة في المتصفح." : "Could not copy the answer. Check clipboard permissions.");
+    }
   }
 
   async function searchPapers(e: FormEvent) {
@@ -109,7 +120,7 @@ export default function Home() {
           <div className="orb">✦</div><h1>{lang === "ar" ? "مرحباً بك في ILYES.B AI" : "Welcome to ILYES.B AI"}</h1>
           <p>{lang === "ar" ? "مساعد متعدد المحركات للبحث والكتابة والتعلّم." : "A multi-engine assistant for research, writing and learning."}</p>
           <div className="quick">{quick.map(q => <button key={q} onClick={() => send(q)}>{lang === "ar" ? q : "Try a quick prompt"}</button>)}</div>
-        </div> : <div className="messages">{messages.map((m,i) => <article key={i} className={m.role}><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b><p>{m.content}</p></article>)}{busy && <div className="typing">يفكر...</div>}</div>}
+        </div> : <div className="messages">{messages.map((m,i) => <article key={i} className={m.role}><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b><p>{m.content}</p>{m.role === "assistant" && <button type="button" className="copy-answer" onClick={() => copyAnswer(m.content, i)}>{copiedIndex === i ? (lang === "ar" ? "تم النسخ ✓" : "Copied ✓") : (lang === "ar" ? "نسخ الإجابة" : "Copy answer")}</button>}</article>)}{busy && <div className="typing">يفكر...</div>}</div>}
       </section>
       {error && <div className="error">{error}</div>}
       <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
