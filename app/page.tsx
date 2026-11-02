@@ -34,6 +34,7 @@ export default function Home() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [researchOpen, setResearchOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [researchQuery, setResearchQuery] = useState("");
   const [papers, setPapers] = useState<Paper[]>([]);
   const [researchAnalysis, setResearchAnalysis] = useState("");
@@ -150,6 +151,8 @@ export default function Home() {
     if (query.length < 3 || researchBusy) return;
     setResearchBusy(true);
     setResearchError("");
+    setResearchAnalysis("");
+    setResearchAnalysisError("");
     setPapers([]);
     try {
       const res = await fetch("/api/research", {
@@ -160,6 +163,8 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "تعذر تنفيذ البحث الأكاديمي");
       setPapers(data.papers || []);
+      setResearchAnalysis(data.analysis || "");
+      setResearchAnalysisError(data.analysisError || "");
       if (!data.papers?.length) setResearchError(lang === "ar" ? "لم تظهر نتائج لهذه العبارة. جرّب كلمات مفتاحية أدق." : "No results found. Try more focused keywords.");
     } catch (e) {
       setResearchError(e instanceof Error ? e.message : "حدث خطأ أثناء البحث");
@@ -222,10 +227,58 @@ export default function Home() {
             </select>
           </label>
           <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
+          <button className="tool-button about-toggle" onClick={() => setAboutOpen(true)}>{lang === "ar" ? "ⓘ نبذة عن المنصة" : "ⓘ About"}</button>
           <button className="tool-button" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>{lang === "ar" ? "EN" : "عربي"}</button>
           {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
         </div>
       </header>
+
+
+      {aboutOpen && <div className="about-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setAboutOpen(false); }}>
+        <section className="about-modal glass" role="dialog" aria-modal="true" aria-labelledby="about-title">
+          <div className="about-modal-header">
+            <div><span className="eyebrow">ILYES.B AI · PLATFORM GUIDE</span><h2 id="about-title">{lang === "ar" ? "نبذة عن المنصة" : "About the platform"}</h2></div>
+            <button className="close-button" onClick={() => setAboutOpen(false)} aria-label={lang === "ar" ? "إغلاق" : "Close"}>×</button>
+          </div>
+          {lang === "ar" ? <>
+            <p className="about-intro">ILYES.B AI مساحة موحدة للمحادثة والكتابة والتعلّم والبحث الأكاديمي. تجمع بين محركات ذكاء اصطناعي متعددة وخدمة متخصصة للعثور على الدراسات العلمية، مع فصل واضح بين وظيفة كل خدمة.</p>
+            <div className="about-section">
+              <h3>أولاً: محركات الذكاء الاصطناعي</h3>
+              <p>هذه المحركات تتولى فهم رسالتك وتوليد الإجابات وصياغة النصوص وشرح الموضوعات. المحركات التي قد تظهر في قائمة الاختيار هي:</p>
+              <ul>
+                <li><b>OpenAI:</b> محرك للمحادثة والتحليل وصياغة الإجابات، ويُستخدم أيضاً لتحليل الدراسات التي يعثر عليها البحث الأكاديمي.</li>
+                <li><b>Gemini:</b> محرك للمحادثة، وتُوجَّه إليه مهام فهم الصور في المنصة.</li>
+                <li><b>Groq:</b> يتيح تشغيل نماذج لغوية للاستجابة للمحادثات.</li>
+                <li><b>Claude:</b> قد يظهر كخيار إضافي عند إعداد مفتاحه؛ ويمكن أن يشارك OpenAI في إعداد إجابة مدمجة عندما يكون المحركان مهيأين.</li>
+              </ul>
+              <p><b>وضع «تلقائي»:</b> يختار الخدمة المتاحة وفق إعدادات الخادم. وعند تهيئة OpenAI وClaude معاً يمكن دمج مخرجاتهما في إجابة واحدة. ظهور المحرك في القائمة أو علامة الجاهزية يعني أن مفتاحه موجود في إعدادات الخادم، وليس ضماناً دائماً لعدم حدوث عطل لدى مزوّد الخدمة.</p>
+            </div>
+            <div className="about-section">
+              <h3>ثانياً: البحث الأكاديمي وConsensus</h3>
+              <p><b>Consensus ليس محرك محادثة، ولذلك لا يظهر ضمن قائمة محركات الإجابة.</b> إنه خدمة بحث أكاديمي مستقلة، وظيفتها العثور على أوراق ودراسات علمية مرتبطة بسؤالك وإرجاع بياناتها، مثل العنوان والباحثين والسنة والمجلة والملخص ورابط الدراسة، بحسب البيانات المتاحة.</p>
+              <div className="about-flow"><span>1 · تكتب سؤالاً بحثياً</span><i>←</i><span>2 · Consensus يبحث عن الدراسات</span><i>←</i><span>3 · OpenAI يحلل النتائج</span><i>←</i><span>4 · تظهر الدراسات والتحليل</span></div>
+              <p>عند فتح زر «بحث أكاديمي» وإرسال عبارة بحث، تستدعي المنصة Consensus للعثور على الدراسات. ثم ترسل النتائج المتاحة إلى OpenAI ليقارن ما تقوله الدراسات، ويعرض نقاط الاتفاق والاختلاف وحدود الأدلة، مع إحالات مرقمة مرتبطة بقائمة الدراسات. التحليل يعتمد على المعلومات التي أعادها البحث، ولا يعني بالضرورة قراءة النص الكامل لكل ورقة.</p>
+            </div>
+            <div className="about-section">
+              <h3>ثالثاً: أين تظهر نتائج Consensus؟</h3>
+              <ol>
+                <li>اضغط «بحث أكاديمي» في الشريط العلوي أو زر «بحث» بجوار مساحة الكتابة.</li>
+                <li>اكتب سؤالاً بحثياً واضحاً، ثم اضغط «ابحث عن دراسات».</li>
+                <li>يظهر «تحليل OpenAI للدراسات» في أعلى النتائج إذا نجح التحليل.</li>
+                <li>تظهر أسفل التحليل بطاقات الدراسات التي عثر عليها Consensus، وتتضمن بياناتها ورابط «فتح الدراسة» عند توفره.</li>
+              </ol>
+              <p>إذا تعذر تحليل OpenAI، فقد تظل الدراسات ظاهرة مع رسالة توضّح تعذر التحليل. وإذا لم تظهر دراسات، جرّب كلمات مفتاحية أكثر تحديداً. تحقق دائماً من بيانات الدراسة ونصها الكامل قبل الاستشهاد بها في بحث جامعي.</p>
+            </div>
+            <div className="about-note"><b>الخلاصة:</b> محركات الذكاء الاصطناعي تجيب عن المحادثات، أما Consensus فيبحث عن الدراسات. وفي البحث الأكاديمي تتعاون الخدمتان: Consensus يجلب المصادر، وOpenAI يحلل النتائج ويعرضها مع روابط الدراسات.</div>
+          </> : <>
+            <p className="about-intro">ILYES.B AI brings chat, writing, learning and academic discovery into one workspace, while keeping AI chat engines separate from the academic search service.</p>
+            <div className="about-section"><h3>1. AI engines</h3><p>These engines understand prompts and generate answers. Available choices may include OpenAI, Gemini and Groq. Claude may also appear when configured. Auto mode selects an available provider; when both OpenAI and Claude are configured, their outputs can be combined. A readiness indicator confirms that a key is configured, not that the provider is always operational.</p></div>
+            <div className="about-section"><h3>2. Academic search and Consensus</h3><p><b>Consensus is not a chat engine, so it does not appear in the engine selector.</b> It is a separate academic-search service that finds relevant research papers and returns available metadata such as titles, authors, publication year, journal, abstracts and links.</p><p>When you submit an academic query, Consensus finds the papers. OpenAI then analyzes the returned information, compares findings, identifies agreement and disagreement, and notes evidence limitations. The analysis is based on returned data and does not necessarily mean the full text of every paper was read.</p></div>
+            <div className="about-section"><h3>3. Where results appear</h3><ol><li>Open Academic Search from the top bar or the Search button beside the composer.</li><li>Enter a focused research question and submit it.</li><li>OpenAI's analysis appears above the results when available.</li><li>Consensus papers appear as cards below, with a link to each paper when available.</li></ol><p>If OpenAI analysis fails, paper results may still appear with an explanatory message. Always verify the paper and its full text before citing it.</p></div>
+            <div className="about-note"><b>In short:</b> AI engines answer chat prompts. Consensus finds academic papers. In academic search, Consensus retrieves the sources and OpenAI analyzes the returned results.</div>
+          </>}
+        </section>
+      </div>}
 
       <section className="status-row" aria-live="polite">
         <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + " من 4 محركات مهيأة" : readyCount + " of 4 engines configured") : (lang === "ar" ? "جارٍ فحص الخدمات…" : "Checking services…")}</span>
