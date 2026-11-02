@@ -35,7 +35,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [researchOpen, setResearchOpen] = useState(false);
   const [researchQuery, setResearchQuery] = useState("");
-  const [papers, setPapers] = useState<Paper[]>([]);
+  const [papers, setPapers] = useState<Paper[]>([]);\n  const [researchAnalysis, setResearchAnalysis] = useState("");\n  const [researchAnalysisError, setResearchAnalysisError] = useState("");
   const [researchBusy, setResearchBusy] = useState(false);
   const [researchError, setResearchError] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
@@ -238,6 +238,11 @@ export default function Home() {
           <button className="primary-button" disabled={researchBusy || researchQuery.trim().length < 3}>{researchBusy ? "…" : (lang === "ar" ? "ابحث عن دراسات" : "Search papers")}</button>
         </form>
         {researchError && <div className="inline-error">{researchError}</div>}
+        {researchAnalysis && <section className="research-analysis">
+          <div className="panel-heading"><div><span className="eyebrow">OPENAI ANALYSIS</span><h3>{lang === "ar" ? "تحليل OpenAI للدراسات" : "OpenAI analysis of the studies"}</h3></div><small>{lang === "ar" ? "مبني على نتائج Consensus" : "Based on Consensus results"}</small></div>
+          <div className="research-analysis-content">{researchAnalysis}</div>
+        </section>}
+        {researchAnalysisError && papers.length > 0 && <div className="inline-error">{researchAnalysisError}</div>}
         {papers.length > 0 && <div className="paper-list">{papers.map((p, i) => <article className="paper-card" key={i}>
           <b>{p.title}</b>
           <small>{[p.authors, p.year, p.journal].filter(Boolean).join(" · ")}</small>
