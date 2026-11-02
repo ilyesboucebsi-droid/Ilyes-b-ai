@@ -217,3 +217,25 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe
 .paper-sources{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .paper-sources span{padding:3px 7px;border:1px solid #e5e7eb;border-radius:20px;background:#f7f7f7;color:#555;font-size:9px}
 @media(max-width:760px){.research-engine-options{grid-template-columns:1fr}.research-engine-option{padding:10px}.research-form .research-merge-button{min-height:42px}}
+
+
+/* Language control anchored to the physical top-left corner */
+.topbar{position:relative;padding-left:62px}
+.language-toggle{position:absolute;left:2px;top:12px;z-index:2;min-width:48px;justify-content:center}
+.research-engine-select{width:100%;padding:16px}
+.research-engine-options{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.research-engine-option{width:100%;min-height:76px;border:1px solid #d8dde5;font:inherit;text-align:start;touch-action:manipulation}
+.research-engine-option:focus-visible{outline:3px solid #9bb7d5;outline-offset:2px}
+.research-engine-option.selected{border:2px solid #555;background:#f1f3f5}
+.research-engine-check{width:22px;height:22px;flex-basis:22px;border-radius:6px}
+.research-engine-copy b{font-size:13px}
+.research-engine-copy small{font-size:11px}
+@media(max-width:760px){
+ .topbar{padding-left:58px}
+ .language-toggle{left:0;top:9px;min-width:45px;padding:7px 8px}
+ .research-engine-select{padding:13px}
+ .research-engine-options{grid-template-columns:1fr;gap:8px}
+ .research-engine-option{min-height:64px;padding:12px}
+ .research-engine-copy b{font-size:13px}
+ .research-engine-copy small{font-size:11px}
+}
