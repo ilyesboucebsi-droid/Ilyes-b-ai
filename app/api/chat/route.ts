@@ -1,0 +1,75 @@
+import { NextRequest, NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
+import { Ratelimit } from "@upstash/ratelimit";
+
+export const runtime = "nodejs";
+
+type Msg = { role: "user" | "assistant"; content: string };
+
+async function checkLimit(req: NextRequest) {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) {
+    if (process.env.NODE_ENV === "production") return false;
+    return true;
+  }
+  const redis = new Redis({ url, token });
+  const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(12, "1 m"), prefix: "ilyesb:chat" });
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const result = await limiter.limit(forwarded);
+  return result.success;
+}
+
+async function askGemini(messages: Msg[]) {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("مفتاح Gemini غير مضبوط في إعدادات الخادم.");
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content.slice(0, 12000) }] }));
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 2048, temperature: 0.7 } }),
+    signal: AbortSignal.timeout(45000)
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "تعذر الاتصال بـ Gemini.");
+  return data.candidates?.[0]?.content?.parts?.map((p: {text?: string}) => p.text || "").join("") || "لم يصل رد نصي من النموذج.";
+}
+
+async function askGroq(messages: Msg[]) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error("مفتاح Groq غير مضبوط في إعدادات الخادم.");
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model: process.env.GROQ_MODEL || "openai/gpt-oss-20b", messages: messages.map(m => ({ role: m.role, content: m.content.slice(0,12000) })), max_completion_tokens: 2048, temperature: 0.7 }),
+    signal: AbortSignal.timeout(45000)
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "تعذر الاتصال بـ Groq.");
+  return data.choices?.[0]?.message?.content || "لم يصل رد نصي من النموذج.";
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    if (!(await checkLimit(req))) return NextResponse.json({ error: "الخدمة غير مهيأة للحماية أو تجاوزت حد الطلبات. حاول لاحقاً." }, { status: 429 });
+    const body = await req.json();
+    const messages = body.messages as Msg[];
+    const provider = body.provider as string;
+    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 24) return NextResponse.json({ error: "صيغة المحادثة غير صحيحة." }, { status: 400 });
+    if (messages.some(m => !["user","assistant"].includes(m.role) || typeof m.content !== "string") || messages[messages.length-1].role !== "user") return NextResponse.json({ error: "الرسائل غير صالحة." }, { status: 400 });
+    if (messages.reduce((n,m)=>n+m.content.length,0) > 60000) return NextResponse.json({ error: "المحادثة طويلة جداً؛ ابدأ محادثة جديدة." }, { status: 413 });
+    let reply: string;
+    if (provider === "gemini") reply = await askGemini(messages);
+    else if (provider === "groq") reply = await askGroq(messages);
+    else {
+      try { reply = process.env.GEMINI_API_KEY ? await askGemini(messages) : await askGroq(messages); }
+      catch (first) {
+        try { reply = process.env.GROQ_API_KEY ? await askGroq(messages) : (() => { throw first; })(); }
+        catch { throw first; }
+      }
+    }
+    return NextResponse.json({ reply });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "حدث خطأ في الخادم.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
