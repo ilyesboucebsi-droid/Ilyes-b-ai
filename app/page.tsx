@@ -96,8 +96,8 @@ export default function Home() {
       setImageError(lang === "ar" ? "الصيغ المدعومة: JPG وPNG وWEBP." : "Supported formats: JPG, PNG and WEBP.");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setImageError(lang === "ar" ? "حجم الصورة يتجاوز 5 ميغابايت. اختر صورة أصغر." : "Image exceeds 5 MB. Choose a smaller image.");
+    if (file.size > 3 * 1024 * 1024) {
+      setImageError(lang === "ar" ? "حجم الصورة يتجاوز 3 ميغابايت. اختر صورة أصغر." : "Image exceeds 3 MB. Choose a smaller image.");
       return;
     }
     const reader = new FileReader();
