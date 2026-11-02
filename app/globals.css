@@ -193,3 +193,27 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe
  .quick-prompts button{font-size:12px}
  .about-section p,.about-section li{font-size:12px}
 }
+
+
+/* Academic multi-engine search controls */
+.research-engine-select{margin:14px 0 12px;padding:13px;border:1px solid #e5e7eb;border-radius:13px;background:#fafafa}
+.research-engine-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:13px;color:#222}
+.research-engine-heading button{border:1px solid #e5e7eb;border-radius:8px;background:#fff;padding:6px 9px;color:#444;font-size:11px;cursor:pointer}
+.research-engine-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.research-engine-option{display:flex;align-items:center;gap:9px;min-width:0;padding:11px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;transition:border-color .15s,background .15s}
+.research-engine-option.selected{border-color:#aebdce;background:#f3f6f9}
+.research-engine-option input{position:absolute;opacity:0;width:1px;height:1px}
+.research-engine-check{display:grid;place-items:center;flex:0 0 19px;width:19px;height:19px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;color:#fff;font-size:12px}
+.research-engine-option.selected .research-engine-check{background:#202123;border-color:#202123}
+.research-engine-copy{display:block;min-width:0}
+.research-engine-copy b{display:block;color:#222;font-size:12px}
+.research-engine-copy small{display:block;margin-top:3px;color:#737373;font-size:10px;line-height:1.5}
+.research-merge-note{margin-top:9px;color:#737373;font-size:10px}
+.research-source-status{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.source-status{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid #e5e7eb;border-radius:20px;background:#fff;color:#555;font-size:10px}
+.source-status i{width:6px;height:6px;border-radius:50%;background:#999}
+.source-status.success i{background:#23945d}.source-status.empty i{background:#c18b28}.source-status.error i{background:#c34444}
+.research-merge-button{min-width:190px}
+.paper-sources{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.paper-sources span{padding:3px 7px;border:1px solid #e5e7eb;border-radius:20px;background:#f7f7f7;color:#555;font-size:9px}
+@media(max-width:760px){.research-engine-options{grid-template-columns:1fr}.research-engine-option{padding:10px}.research-form .research-merge-button{min-height:42px}}
