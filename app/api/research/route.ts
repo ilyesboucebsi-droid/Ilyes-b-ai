@@ -69,7 +69,58 @@ export async function POST(req: NextRequest) {
       doi: text(p.doi),
       citations: p.citation_count ?? p.citations ?? null
     }));
-    return NextResponse.json({ papers, total: data.total ?? data.total_results ?? papers.length });
+    let analysis: string | null = null;
+    let analysisError: string | null = null;
+    const openaiKey = process.env.OPENAI_API_KEY;
+
+    if (!openaiKey) {
+      analysisError = "مفتاح OpenAI غير مضبوط؛ عُرضت نتائج Consensus دون تحليل.";
+    } else if (papers.length > 0) {
+      try {
+        const sourceMaterial = papers.map((p: any, i: number) => [
+          `[${i + 1}] العنوان: ${p.title}`,
+          `المؤلفون: ${p.authors || "غير متاح"}`,
+          `السنة: ${p.year || "غير متاحة"}`,
+          `المجلة: ${p.journal || "غير متاحة"}`,
+          `الملخص: ${(p.abstract || "لا يوجد ملخص متاح.").slice(0, 3500)}`,
+          `DOI: ${p.doi || "غير متاح"}`,
+          `الرابط: ${p.url || "غير متاح"}`
+        ].join("\\n")).join("\\n\\n");
+
+        const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + openaiKey },
+          body: JSON.stringify({
+            model: process.env.OPENAI_MODEL || "gpt-5.5",
+            instructions: "أنت مساعد بحث أكاديمي. حلّل الدراسات المقدمة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن أوجه الاتفاق والاختلاف وحدود الأدلة. استخدم إحالات مرقمة [1] [2] تطابق الدراسات المقدمة. لا تختلق نتائج أو بيانات أو مراجع، ولا تنسب للدراسة ما لا يثبته عنوانها أو ملخصها. إذا كانت الملخصات غير كافية فصرّح بذلك. اجعل الإجابة منظمة وموجزة.",
+            input: `سؤال البحث: ${query}\\n\\nالدراسات التي أعادها Consensus:\\n${sourceMaterial}\\n\\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود الملخصات المتاحة.`,
+            max_output_tokens: 2200
+          }),
+          signal: AbortSignal.timeout(60000)
+        });
+        const result = await openaiResponse.json();
+        if (!openaiResponse.ok) {
+          const detail = result?.error?.message || result?.message || "تعذر إكمال تحليل OpenAI.";
+          throw new Error(typeof detail === "string" ? detail : "تعذر إكمال تحليل OpenAI.");
+        }
+        const blocks = Array.isArray(result.output) ? result.output.flatMap((item: any) => Array.isArray(item.content) ? item.content : []) : [];
+        const answer = typeof result.output_text === "string"
+          ? result.output_text
+          : blocks.filter((b: any) => b.type === "output_text" && typeof b.text === "string").map((b: any) => b.text).join("\\n");
+        if (!answer.trim()) throw new Error("لم يصل رد تحليلي من OpenAI.");
+        analysis = answer.trim();
+      } catch (error) {
+        analysisError = error instanceof Error ? error.message : "تعذر تحليل الدراسات عبر OpenAI.";
+      }
+    }
+
+    return NextResponse.json({
+      papers,
+      total: data.total ?? data.total_results ?? papers.length,
+      analysis,
+      analysisEngine: analysis ? "openai" : null,
+      analysisError
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "حدث خطأ أثناء البحث الأكاديمي.";
     return NextResponse.json({ error: message }, { status: 500 });
