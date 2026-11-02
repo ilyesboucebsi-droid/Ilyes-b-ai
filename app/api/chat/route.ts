@@ -71,7 +71,8 @@ async function askOpenAI(messages: Msg[]) {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-5.5",
+      model: process.env.OPENAI_MODEL || "gpt-6.1-sol",
+      reasoning: { effort: process.env.OPENAI_REASONING_EFFORT || "medium" },
       instructions: SYSTEM_INSTRUCTION,
       input: messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) })),
       max_output_tokens: 2048
