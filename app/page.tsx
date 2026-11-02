@@ -1,21 +1,32 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Engine = "auto" | "openai" | "claude" | "gemini" | "groq";
+type Message = { role: "user" | "assistant"; content: string; engine?: string };
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null };
+type Prompt = { id: string; text: string };
+type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq", boolean>; consensus: boolean };
 
-const quick = [
-  "اشرح لي هذا الموضوع ببساطة",
-  "أعد صياغة النص بأسلوب أكاديمي طبيعي",
-  "حلّل مسألة قانونية وفق القانون الجزائري",
-  "لخّص هذا النص مع الحفاظ على الأفكار الأساسية"
+const DEFAULT_PROMPTS: Prompt[] = [
+  { id: "explain", text: "اشرح لي هذا الموضوع ببساطة" },
+  { id: "rewrite", text: "أعد صياغة النص بأسلوب أكاديمي طبيعي" },
+  { id: "law", text: "حلّل مسألة قانونية وفق القانون الجزائري" },
+  { id: "summary", text: "لخّص هذا النص مع الحفاظ على الأفكار الأساسية" }
 ];
+
+const ENGINE_LABELS: Record<string, string> = {
+  hybrid: "OpenAI + Claude · إجابة مدمجة",
+  openai: "OpenAI",
+  claude: "Claude",
+  gemini: "Gemini",
+  groq: "Groq"
+};
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [provider, setProvider] = useState("auto");
+  const [provider, setProvider] = useState<Engine>("auto");
   const [lang, setLang] = useState<"ar" | "en">("ar");
   const [busy, setBusy] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -25,23 +36,52 @@ export default function Home() {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [researchBusy, setResearchBusy] = useState(false);
   const [researchError, setResearchError] = useState("");
+  const [status, setStatus] = useState<Status | null>(null);
+  const [prompts, setPrompts] = useState<Prompt[]>(DEFAULT_PROMPTS);
+  const [promptsLoaded, setPromptsLoaded] = useState(false);
+  const [managePrompts, setManagePrompts] = useState(false);
+  const [newPrompt, setNewPrompt] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+
+  useEffect(() => {
+    fetch("/api/status").then(r => r.json()).then(setStatus).catch(() => setStatus(null));
+    try {
+      const saved = localStorage.getItem("ilyesb-quick-prompts");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setPrompts(parsed.filter((p: any) => p && typeof p.id === "string" && typeof p.text === "string").slice(0, 12));
+      }
+    } catch {}
+    setPromptsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (promptsLoaded) localStorage.setItem("ilyesb-quick-prompts", JSON.stringify(prompts));
+  }, [prompts, promptsLoaded]);
 
   async function send(text = input) {
     const value = text.trim();
     if (!value || busy) return;
     const next: Message[] = [...messages, { role: "user", content: value }];
-    setMessages(next); setInput(""); setBusy(true); setError("");
+    setMessages(next);
+    setInput("");
+    setBusy(true);
+    setError("");
     try {
       const res = await fetch("/api/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next, provider })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "تعذر إكمال الطلب");
-      setMessages([...next, { role: "assistant", content: data.reply }]);
+      setMessages([...next, { role: "assistant", content: data.reply, engine: data.engine || "auto" }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function copyAnswer(content: string, index: number) {
@@ -58,77 +98,152 @@ export default function Home() {
     e.preventDefault();
     const query = researchQuery.trim();
     if (query.length < 3 || researchBusy) return;
-    setResearchBusy(true); setResearchError(""); setPapers([]);
+    setResearchBusy(true);
+    setResearchError("");
+    setPapers([]);
     try {
       const res = await fetch("/api/research", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "تعذر تنفيذ البحث الأكاديمي");
       setPapers(data.papers || []);
-      if (!data.papers?.length) setResearchError("لم يعثر البحث على نتائج. جرّب صياغة أخرى أو استخدم كلمات مفتاحية باللغة الإنجليزية.");
+      if (!data.papers?.length) setResearchError(lang === "ar" ? "لم تظهر نتائج لهذه العبارة. جرّب كلمات مفتاحية أدق." : "No results found. Try more focused keywords.");
     } catch (e) {
       setResearchError(e instanceof Error ? e.message : "حدث خطأ أثناء البحث");
-    } finally { setResearchBusy(false); }
+    } finally {
+      setResearchBusy(false);
+    }
   }
 
   function dictate() {
     const w = window as typeof window & { SpeechRecognition?: new () => any; webkitSpeechRecognition?: new () => any };
     const Recognition = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (!Recognition) { setError("الإملاء الصوتي غير مدعوم في هذا المتصفح."); return; }
-    const rec = new Recognition(); rec.lang = lang === "ar" ? "ar-DZ" : "en-US";
-    rec.onresult = (event: any) => setInput((old) => old + event.results[0][0].transcript);
-    rec.onerror = () => setError("تعذر التقاط الصوت. تحقق من إذن الميكروفون.");
+    if (!Recognition) {
+      setError(lang === "ar" ? "الإملاء الصوتي غير مدعوم في هذا المتصفح." : "Voice input is not supported in this browser.");
+      return;
+    }
+    const rec = new Recognition();
+    rec.lang = lang === "ar" ? "ar-DZ" : "en-US";
+    rec.onresult = (event: any) => setInput(old => old + event.results[0][0].transcript);
+    rec.onerror = () => setError(lang === "ar" ? "تعذر التقاط الصوت. تحقق من إذن الميكروفون." : "Could not capture audio. Check microphone permission.");
     rec.start();
   }
 
+  function addPrompt(e: FormEvent) {
+    e.preventDefault();
+    const text = newPrompt.trim();
+    if (!text || prompts.length >= 12) return;
+    setPrompts(old => [...old, { id: "custom-" + Date.now(), text }]);
+    setNewPrompt("");
+  }
+
+  function savePrompt(id: string) {
+    const value = editingText.trim();
+    if (!value) return;
+    setPrompts(old => old.map(p => p.id === id ? { ...p, text: value } : p));
+    setEditingId(null);
+    setEditingText("");
+  }
+
+  const providerReady = (name: "openai" | "claude" | "gemini" | "groq") => status?.providers?.[name] ?? false;
+  const readyCount = status ? Object.values(status.providers).filter(Boolean).length : 0;
+  const isHybridReady = providerReady("openai") && providerReady("claude");
+
   return (
-    <main className="shell" dir={lang === "ar" ? "rtl" : "ltr"}>
-      <header className="topbar">
-        <div className="brand"><span className="brand-mark">B</span><div><strong>ILYES.B AI</strong><small>{lang === "ar" ? "مساعدك الذكي" : "Your AI assistant"}</small></div></div>
-        <div className="tools">
-          <select aria-label="AI engine" value={provider} onChange={e => setProvider(e.target.value)}>
-            <option value="auto">{lang === "ar" ? "اختيار تلقائي" : "Auto select"}</option>
-            <option value="gemini">Gemini</option><option value="groq">Groq</option>
-          </select>
-          <button className="lang" onClick={() => setResearchOpen(v => !v)}>{lang === "ar" ? "بحث أكاديمي" : "Academic search"}</button>
-          <button className="lang" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>{lang === "ar" ? "EN" : "عربي"}</button>
+    <main className="app-shell" dir={lang === "ar" ? "rtl" : "ltr"}>
+      <div className="ambient ambient-one" />
+      <div className="ambient ambient-two" />
+      <header className="topbar glass">
+        <div className="brand">
+          <div className="brand-mark"><span>IB</span><i>✦</i></div>
+          <div><strong>ILYES.B <em>AI</em></strong><small>{lang === "ar" ? "مساحة ذكية للمعرفة والإبداع" : "A smarter space for knowledge and creativity"}</small></div>
+        </div>
+        <div className="toolbar">
+          <label className="engine-picker">
+            <span>✧</span>
+            <select aria-label="AI engine" value={provider} onChange={e => setProvider(e.target.value as Engine)}>
+              <option value="auto">{lang === "ar" ? "تلقائي · مدمج" : "Auto · Hybrid"}</option>
+              <option value="openai" disabled={!providerReady("openai")}>OpenAI{providerReady("openai") ? " ✓" : " · غير مهيأ"}</option>
+              <option value="claude" disabled={!providerReady("claude")}>Claude{providerReady("claude") ? " ✓" : " · غير مهيأ"}</option>
+              <option value="gemini" disabled={!providerReady("gemini")}>Gemini{providerReady("gemini") ? " ✓" : " · غير مهيأ"}</option>
+              <option value="groq" disabled={!providerReady("groq")}>Groq{providerReady("groq") ? " ✓" : " · غير مهيأ"}</option>
+            </select>
+          </label>
+          <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
+          <button className="tool-button" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>{lang === "ar" ? "EN" : "عربي"}</button>
+          {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
         </div>
       </header>
 
-      {researchOpen && <section className="research">
-        <h2>{lang === "ar" ? "البحث الأكاديمي — Consensus" : "Academic research — Consensus"}</h2>
-        <p>{lang === "ar" ? "ابحث عن الدراسات والأوراق العلمية. اكتب موضوعك، ويفضّل استخدام كلمات مفتاحية دقيقة." : "Search academic papers and studies using a focused query."}</p>
+      <section className="status-row">
+        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + " محركات متاحة" : readyCount + " engines ready") : (lang === "ar" ? "جارٍ فحص المحركات…" : "Checking engines…")}</span>
+        <div className="status-pills">
+          <span className={providerReady("openai") ? "ready" : ""}>OpenAI</span>
+          <span className={providerReady("claude") ? "ready" : ""}>Claude</span>
+          <span className={providerReady("gemini") ? "ready" : ""}>Gemini</span>
+          <span className={providerReady("groq") ? "ready" : ""}>Groq</span>
+          <span className={status?.consensus ? "ready" : ""}>Consensus {status?.consensus ? "✓" : "—"}</span>
+        </div>
+      </section>
+
+      {researchOpen && <section className="research-panel glass">
+        <div className="panel-heading"><div><span className="eyebrow">ACADEMIC DISCOVERY</span><h2>{lang === "ar" ? "البحث العلمي عبر Consensus" : "Academic search with Consensus"}</h2></div><button className="close-button" onClick={() => setResearchOpen(false)} aria-label="Close">×</button></div>
+        <p>{lang === "ar" ? "هذه الخاصية وحدها تستدعي خدمة Consensus للبحث عن الدراسات والأوراق العلمية. المحادثة العادية لا تستخدم Consensus تلقائياً." : "This dedicated feature calls Consensus to find academic papers. Normal chat does not use Consensus automatically."}</p>
         <form onSubmit={searchPapers} className="research-form">
           <input value={researchQuery} onChange={e => setResearchQuery(e.target.value)} placeholder={lang === "ar" ? "مثال: أثر الذكاء الاصطناعي على المسؤولية المدنية" : "e.g. AI and civil liability"} />
-          <button className="send" disabled={researchBusy || researchQuery.trim().length < 3}>{researchBusy ? "…" : (lang === "ar" ? "ابحث" : "Search")}</button>
+          <button className="primary-button" disabled={researchBusy || researchQuery.trim().length < 3}>{researchBusy ? "…" : (lang === "ar" ? "ابحث عن دراسات" : "Search papers")}</button>
         </form>
-        {researchError && <div className="error">{researchError}</div>}
-        {papers.length > 0 && <div className="paper-list">{papers.map((p,i) => <article className="paper" key={i}>
+        {researchError && <div className="inline-error">{researchError}</div>}
+        {papers.length > 0 && <div className="paper-list">{papers.map((p, i) => <article className="paper-card" key={i}>
           <b>{p.title}</b>
-          <small>{[p.authors,p.year,p.journal].filter(Boolean).join(" • ")}</small>
+          <small>{[p.authors, p.year, p.journal].filter(Boolean).join(" · ")}</small>
           {p.abstract && <p>{p.abstract}</p>}
-          <small>{p.citations !== null ? (lang === "ar" ? "الاستشهادات: " : "Citations: ") + p.citations : ""}{p.doi ? " • DOI: " + p.doi : ""}</small>
-          {p.url && <a href={p.url} target="_blank" rel="noreferrer">{lang === "ar" ? "فتح الدراسة" : "Open paper"}</a>}
+          <small>{p.citations !== null ? (lang === "ar" ? "الاستشهادات: " : "Citations: ") + p.citations : ""}{p.doi ? " · DOI: " + p.doi : ""}</small>
+          {p.url && <a href={p.url} target="_blank" rel="noreferrer">{lang === "ar" ? "فتح الدراسة ↗" : "Open paper ↗"}</a>}
         </article>)}</div>}
-        <small className="research-note">{lang === "ar" ? "ملاحظة: البحث يستهلك من حصة Consensus الشهرية. تحقّق من بيانات الدراسة ومصدرها قبل الاستشهاد بها." : "Searches use your monthly Consensus allowance. Verify paper details before citing."}</small>
+        <small className="research-footnote">{lang === "ar" ? "تحقّق من بيانات الدراسة والنص الكامل قبل الاستشهاد بها. استخدام البحث يخضع لحصة حساب Consensus." : "Verify paper details and full text before citing. Searches count toward your Consensus allowance."}</small>
       </section>}
 
-      <section className="chat">
+      <section className={"conversation-area " + (messages.length ? "has-messages" : "")}>
         {messages.length === 0 ? <div className="welcome">
-          <div className="orb">✦</div><h1>{lang === "ar" ? "مرحباً بك في ILYES.B AI" : "Welcome to ILYES.B AI"}</h1>
-          <p>{lang === "ar" ? "مساعد متعدد المحركات للبحث والكتابة والتعلّم." : "A multi-engine assistant for research, writing and learning."}</p>
-          <div className="quick">{quick.map(q => <button key={q} onClick={() => send(q)}>{lang === "ar" ? q : "Try a quick prompt"}</button>)}</div>
-        </div> : <div className="messages">{messages.map((m,i) => <article key={i} className={m.role}><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b><p>{m.content}</p>{m.role === "assistant" && <button type="button" className="copy-answer" onClick={() => copyAnswer(m.content, i)}>{copiedIndex === i ? (lang === "ar" ? "تم النسخ ✓" : "Copied ✓") : (lang === "ar" ? "نسخ الإجابة" : "Copy answer")}</button>}</article>)}{busy && <div className="typing">يفكر...</div>}</div>}
+          <div className="hero-symbol"><div className="hero-core">✦</div><span className="orbit orbit-a" /><span className="orbit orbit-b" /></div>
+          <span className="eyebrow">{lang === "ar" ? "ذكاء متعدد المحركات" : "MULTI-ENGINE INTELLIGENCE"}</span>
+          <h1>{lang === "ar" ? <>أهلاً بك في <span>ILYES.B AI</span></> : <>Welcome to <span>ILYES.B AI</span></>}</h1>
+          <p className="welcome-copy">{lang === "ar" ? "اسأل، ابحث، اكتب، وتعلّم. مساعد واحد يجمع أدوات متعددة في تجربة بسيطة." : "Ask, research, write and learn. Multiple AI engines in one clear workspace."}</p>
+          <div className="capability-grid">
+            <div><span>⌘</span><b>{lang === "ar" ? "فهم وتحليل" : "Understand"}</b><small>{lang === "ar" ? "شرح الأفكار والمسائل" : "Explain complex ideas"}</small></div>
+            <div><span>✎</span><b>{lang === "ar" ? "كتابة وتحرير" : "Write"}</b><small>{lang === "ar" ? "صياغة وتلخيص ومراجعة" : "Rewrite and summarize"}</small></div>
+            <div><span>⌕</span><b>{lang === "ar" ? "بحث أكاديمي" : "Research"}</b><small>{lang === "ar" ? "الوصول إلى الدراسات" : "Find academic papers"}</small></div>
+          </div>
+          <div className="quick-heading"><span>{lang === "ar" ? "ابدأ بأحد الأوامر السريعة" : "START WITH A QUICK PROMPT"}</span><button onClick={() => setManagePrompts(v => !v)}>{managePrompts ? (lang === "ar" ? "إغلاق الإدارة" : "Close manager") : (lang === "ar" ? "إدارة الأوامر ＋" : "Manage prompts ＋")}</button></div>
+          <div className="quick-prompts">{prompts.map(p => <button key={p.id} onClick={() => send(p.text)}><span>✧</span>{p.text}<i>↗</i></button>)}</div>
+          {managePrompts && <div className="prompt-manager">
+            <form onSubmit={addPrompt} className="add-prompt-form"><input value={newPrompt} onChange={e => setNewPrompt(e.target.value)} placeholder={lang === "ar" ? "اكتب أمراً سريعاً جديداً…" : "Add a new quick prompt…"} /><button className="primary-button" disabled={!newPrompt.trim() || prompts.length >= 12}>＋</button></form>
+            {prompts.map(p => <div className="prompt-edit-row" key={p.id}>
+              {editingId === p.id ? <><input value={editingText} onChange={e => setEditingText(e.target.value)} /><button onClick={() => savePrompt(p.id)}>{lang === "ar" ? "حفظ" : "Save"}</button><button onClick={() => setEditingId(null)}>{lang === "ar" ? "إلغاء" : "Cancel"}</button></> : <><span>{p.text}</span><button onClick={() => { setEditingId(p.id); setEditingText(p.text); }}>{lang === "ar" ? "تعديل" : "Edit"}</button><button className="delete-prompt" onClick={() => setPrompts(old => old.filter(item => item.id !== p.id))}>{lang === "ar" ? "حذف" : "Delete"}</button></>}
+            </div>)}
+            <small>{lang === "ar" ? "تُحفظ الأوامر على هذا الجهاز والمتصفح، ويمكنك تعديلها أو حذفها لاحقاً." : "Prompts are saved in this browser and can be edited or deleted anytime."}</small>
+          </div>}
+        </div> : <div className="messages-list">{messages.map((m, i) => <article key={i} className={"message-card " + m.role}>
+          <div className="message-heading"><div className="message-avatar">{m.role === "user" ? "أ" : "✦"}</div><div><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b>{m.role === "assistant" && m.engine && <small>{ENGINE_LABELS[m.engine] || m.engine}</small>}</div></div>
+          <div className="message-content">{m.content}</div>
+          {m.role === "assistant" && <button type="button" className="copy-button" onClick={() => copyAnswer(m.content, i)}>{copiedIndex === i ? "✓ " + (lang === "ar" ? "تم النسخ" : "Copied") : "▢ " + (lang === "ar" ? "نسخ الإجابة" : "Copy answer")}</button>}
+        </article>)}{busy && <div className="thinking"><span /><span /><span />{lang === "ar" ? "جارٍ إعداد الإجابة…" : "Preparing your answer…"}</div>}</div>}
       </section>
-      {error && <div className="error">{error}</div>}
-      <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
-        <button type="button" className="icon" onClick={dictate} title="Voice input">🎙</button>
-        <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if(e.key==="Enter" && !e.shiftKey){e.preventDefault();send();} }} placeholder={lang === "ar" ? "اكتب رسالتك هنا..." : "Write your message..."} rows={1} />
-        <button className="send" disabled={busy || !input.trim()}>{busy ? "…" : "➤"}</button>
-      </form>
-      <footer>قد تخطئ الإجابات؛ تحقّق من المعلومات القانونية والمهمة قبل الاعتماد عليها.</footer>
+
+      {error && <div className="error-banner"><span>!</span>{error}<button onClick={() => setError("")}>×</button></div>}
+      <div className="composer-wrap">
+        <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
+          <button type="button" className="voice-button" onClick={dictate} title={lang === "ar" ? "إملاء صوتي" : "Voice input"} aria-label="Voice input">♩</button>
+          <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={lang === "ar" ? "اكتب سؤالك أو الصق النص هنا…" : "Ask anything or paste your text…"} rows={1} />
+          <button className="send-button" disabled={busy || !input.trim()} aria-label="Send">{busy ? "…" : "↑"}</button>
+        </form>
+        <div className="composer-hint"><span>{lang === "ar" ? "Enter للإرسال · Shift + Enter لسطر جديد" : "Enter to send · Shift + Enter for a new line"}</span><span>{lang === "ar" ? "قد تخطئ نماذج الذكاء الاصطناعي؛ راجع المعلومات المهمة." : "AI can make mistakes. Verify important information."}</span></div>
+      </div>
+      <footer className="site-footer"><span>ILYES.B AI</span><i>•</i>{lang === "ar" ? "معرفة أوسع، وقرار أوعى." : "Broader knowledge. Better judgment."}</footer>
     </main>
   );
 }
