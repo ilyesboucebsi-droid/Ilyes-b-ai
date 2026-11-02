@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null };
@@ -43,7 +43,7 @@ export default function Home() {
     } finally { setBusy(false); }
   }
 
-  async function searchPapers(e: React.FormEvent) {
+  async function searchPapers(e: FormEvent) {
     e.preventDefault();
     const query = researchQuery.trim();
     if (query.length < 3 || researchBusy) return;
