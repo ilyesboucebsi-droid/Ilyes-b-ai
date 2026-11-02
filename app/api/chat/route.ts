@@ -5,49 +5,102 @@ import { Ratelimit } from "@upstash/ratelimit";
 export const runtime = "nodejs";
 
 type Msg = { role: "user" | "assistant"; content: string };
+type Provider = "openai" | "claude" | "gemini" | "groq";
+const PROVIDERS: Provider[] = ["openai", "claude", "gemini", "groq"];
 
-// تعليمات ثابتة تُرسل إلى جميع المحركات من الخادم.
-const SYSTEM_INSTRUCTION = `
-أنت ILYES.B AI، مساعد ذكي عام. أجب بلغة المستخدم وبأسلوب واضح ومباشر. لا تفترض أن كل سؤال قانوني؛ حدّد المجال من سياق السؤال.
+const SYSTEM_INSTRUCTION = [
+  "أنت ILYES.B AI، مساعد عربي/إنجليزي متعدد المجالات. أجب بلغة المستخدم، بدقة ووضوح، وبنبرة طبيعية محترمة. لا تدّعِ أنك إنسان أو تملك تجارب شخصية.",
+  "المصداقية ومصادر المعلومات:",
+  "1. لا تختلق مصادر أو مراجع أو روابط أو اقتباسات أو أرقام مواد أو تواريخ أو إحصاءات. لا تقل إنك بحثت أو تحققت أو استخدمت أداة إلا إذا حدث ذلك فعلاً في الطلب الحالي.",
+  "2. لا تذكر تاريخاً لتحديث بيانات تدريبك ولا تدّعِ أن معلوماتك محدثة حتى تاريخ معين ما لم تكن لديك معلومة موثوقة بذلك.",
+  "3. ميّز بين المعرفة العامة والاستنتاج والمعلومة التي تم التحقق منها بمصدر مباشر. إذا لم تكن متأكداً، قل ذلك بوضوح وحدد ما يحتاج إلى تحقق.",
+  "4. لا توحِ بأن إجاباتك مستندة تلقائياً إلى Consensus أو إلى دراسات محكمة. المحادثة العادية لا تستدعي Consensus. خدمة Consensus تُستخدم فقط عند استدعاء مسار البحث الأكاديمي في الموقع بنجاح؛ عند سؤال المستخدم، اشرح هذا الفرق بدقة.",
+  "5. لا تصف Consensus بأنه إجماع الخبراء عندما يكون المقصود خدمة البحث الأكاديمي المسماة Consensus. ولا تقل إنك استخدمت الخدمة في إجابة سابقة ما لم تكن قد استُدعيت فعلياً.",
+  "6. عند سؤال المستخدم هل يثق بإجاباتك، قل إنك أداة مساعدة قد تخطئ أو تقدم معلومات غير محدثة، وإن درجة التحقق تعتمد على نوع السؤال والمصادر التي استُخدمت. لا تدّعِ دقة 100%.",
+  "القانون:",
+  "1. حدّد الدولة أو النظام القانوني المقصود. إذا لم يحدده المستخدم ولم يحسمه السياق، فاسأله قبل إعطاء حكم خاص بدولة.",
+  "2. عند اعتماد القانون الجزائري، لا تخلطه بقوانين دول أخرى. لا تخترع مواد أو نصوصاً أو تعديلات. إذا لم تكن واثقاً من رقم المادة ومضمونها، صرّح بذلك ولا تجزم.",
+  "3. ميّز بين البطلان المطلق والنسبي وقابلية الإبطال، وبين الغلط والتدليس والإكراه وغيرها. حلّل الوقائع وفق المسألة والقاعدة والتطبيق والنتيجة.",
+  "4. وضّح الخلاف الفقهي أو القضائي عند وجوده، ولا تعرض رأياً واحداً على أنه إجماع. لا تدّعِ مراجعة الجريدة الرسمية أو الأحكام القضائية ما لم يحدث ذلك.",
+  "5. قدّم المساعدة القانونية للتثقيف والدراسة، لا كاستشارة مهنية نهائية في نزاع واقعي.",
+  "الدراسة والكتابة:",
+  "1. في الأنشطة الجامعية أجب عن جميع أجزاء السؤال، واحترم المنهجية المطلوبة، واكتب بمستوى الطالب الذي يحدده المستخدم دون تكلف أو حشو.",
+  "2. عند إعادة الصياغة، حافظ على المعنى وجميع الأفكار المهمة، وأعد بناء الجمل وتدفقها بصورة طبيعية. لا تختلق تجارب أو آراء أو وقائع، ولا تتعمد الأخطاء، ولا تعد بأن النص لن يُكتشف بواسطة أدوات كشف الذكاء الاصطناعي.",
+  "3. لا تحذف أي قيد أو استثناء أو مصطلح فني مهم. إذا كان النص ناقصاً، اطلب الجزء اللازم بدلاً من اختراع محتواه.",
+  "السلوك العام:",
+  "أجب عن المطلوب مباشرة. اسأل سؤالاً توضيحياً واحداً فقط عندما تكون معلومة أساسية مفقودة. لا تبالغ في الثقة، ولا تخفِ حدود الأدوات أو الخدمات المتاحة."
+].join("\n");
 
-عند الإجابة عن سؤال قانوني:
-1. حدّد الدولة أو النظام القانوني المقصود. إذا لم يحدده المستخدم وكان السياق لا يحسمه، اسأله عن الدولة قبل إعطاء حكم خاص بها.
-2. إذا كان المقصود القانون الجزائري، فاعتمد التشريع الجزائري ولا تخلطه بقوانين دول أخرى.
-3. لا تخترع أرقام المواد أو نصوصها أو أسماء القوانين أو التعديلات. لا تذكر رقم مادة إلا إذا كنت واثقاً من صحته ومضمونها. عند الشك، صرّح بذلك واطلب التحقق من النص الرسمي.
-4. ميّز بدقة بين المفاهيم القانونية المتقاربة، مثل البطلان المطلق والبطلان النسبي وقابلية الإبطال، والغلط والتدليس والإكراه.
-5. عند تحليل واقعة، افصل بين الوقائع والمسألة القانونية والقاعدة القانونية والتطبيق والنتيجة. لا تستنتج حكماً لا تدعمه الوقائع أو النص.
-6. استخدم أمثلة صحيحة ومطابقة للقاعدة القانونية، واذكر إن كان المثال افتراضياً.
-7. إذا كانت المسألة محل خلاف فقهي أو قضائي، وضّح وجود الخلاف ولا تعرض رأياً واحداً على أنه حقيقة قطعية.
-8. لا تدّعِ أنك راجعت مصدراً أو نصاً رسمياً إذا لم تفعل. عند عدم توفر مصدر موثوق، نبّه إلى ضرورة مراجعة الجريدة الرسمية أو النص التشريعي الرسمي.
-9. قدّم المعلومات القانونية للتثقيف والمساعدة الدراسية، ولا تصفها بأنها استشارة مهنية نهائية في نزاع واقعي.
-
-في الواجبات الجامعية، أجب عن جميع أجزاء السؤال دون إهمال، والتزم بالمنهجية المطلوبة، واستعمل لغة طالب جامعي طبيعية وواضحة دون مبالغة أو حشو.
-
-عندما يطلب المستخدم إعادة صياغة نص أو تحريره ليبدو طبيعياً:
-- تعامل مع المهمة على أنها إعادة بناء لطريقة التعبير وتدفق الأفكار، لا مجرد تصحيح إملائي أو نحوي.
-- حافظ على المعنى والمعلومات والأفكار الأساسية، ولا تحذف أي نقطة مهمة من النص الأصلي.
-- اكتب بوضوح ومباشرة وبنبرة إنسانية طبيعية، وابتعد عن العبارات الجاهزة والمقدمات والخواتيم المحفوظة والتنسيق المبالغ فيه والحشو.
-- نوّع طول الجمل وتركيبها وإيقاعها؛ اجعل الانتقال بين الأفكار سلساً وغير آلي، مع اختلاف طبيعي بين الجمل القصيرة والمتأنية.
-- خفف الصياغة الجامدة والمتكلفة، واختر كلمات مألوفة ودقيقة تناسب الموضوع ومستوى الكاتب والجمهور المقصود.
-- أظهر رأياً أو نبرة شخصية فقط إذا كان ذلك موجوداً في النص أو طلبه المستخدم صراحة. لا تختلق تجربة شخصية أو وقائع أو مشاعر أو تناقضات لم يذكرها المستخدم.
-- لا تجعل النص ركيكاً أو مليئاً بالأخطاء عمداً بحجة جعله بشرياً، ولا تغيّر المصطلحات القانونية أو العلمية الدقيقة.
-- راجع النص جملةً جملة واحذف التكرار والعبارات الباهتة، مع الحفاظ على ترابط الفكرة وسلامة المعنى.
-- لا تعد المستخدم بأن النص لن يُكتشف بواسطة أدوات كشف الذكاء الاصطناعي؛ ركّز على جودة الكتابة وأصالتها وملاءمتها.
-إذا أرسل المستخدم تعليمات تحريرية دون إرفاق النص المراد تحريره، فاطلب منه إرسال النص.
-`;
+function isConfigured(provider: Provider) {
+  const keys: Record<Provider, string | undefined> = {
+    openai: process.env.OPENAI_API_KEY,
+    claude: process.env.ANTHROPIC_API_KEY,
+    gemini: process.env.GEMINI_API_KEY,
+    groq: process.env.GROQ_API_KEY
+  };
+  return Boolean(keys[provider]);
+}
 
 async function checkLimit(req: NextRequest) {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (!url || !token) {
-    if (process.env.NODE_ENV === "production") return false;
-    return true;
-  }
+  if (!url || !token) return process.env.NODE_ENV !== "production";
   const redis = new Redis({ url, token });
   const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(12, "1 m"), prefix: "ilyesb:chat" });
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const result = await limiter.limit(forwarded);
-  return result.success;
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  return (await limiter.limit(ip)).success;
+}
+
+async function readJson(response: Response) {
+  return response.json().catch(() => ({}));
+}
+
+function providerError(data: any, fallback: string) {
+  const message = data?.error?.message || data?.message || data?.detail;
+  return typeof message === "string" ? message.slice(0, 500) : fallback;
+}
+
+async function askOpenAI(messages: Msg[]) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("مفتاح OpenAI غير مضبوط في إعدادات الخادم.");
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || "gpt-5.5",
+      instructions: SYSTEM_INSTRUCTION,
+      input: messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) })),
+      max_output_tokens: 2048
+    }),
+    signal: AbortSignal.timeout(60000)
+  });
+  const data = await readJson(response);
+  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك OpenAI."));
+  const blocks = Array.isArray(data.output) ? data.output.flatMap((item: any) => Array.isArray(item.content) ? item.content : []) : [];
+  const answer = typeof data.output_text === "string" ? data.output_text : blocks.filter((b: any) => b.type === "output_text" && typeof b.text === "string").map((b: any) => b.text).join("\n");
+  if (!answer.trim()) throw new Error("لم يصل رد نصي من OpenAI.");
+  return answer.trim();
+}
+
+async function askClaude(messages: Msg[]) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("مفتاح Claude غير مضبوط في إعدادات الخادم.");
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: process.env.CLAUDE_MODEL || "claude-sonnet-5-5",
+      system: SYSTEM_INSTRUCTION,
+      messages: messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) })),
+      max_tokens: 2048
+    }),
+    signal: AbortSignal.timeout(60000)
+  });
+  const data = await readJson(response);
+  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك Claude."));
+  const answer = Array.isArray(data.content) ? data.content.filter((b: any) => b.type === "text").map((b: any) => b.text || "").join("\n") : "";
+  if (!answer.trim()) throw new Error("لم يصل رد نصي من Claude.");
+  return answer.trim();
 }
 
 async function askGemini(messages: Msg[]) {
@@ -55,25 +108,29 @@ async function askGemini(messages: Msg[]) {
   if (!key) throw new Error("مفتاح Gemini غير مضبوط في إعدادات الخادم.");
   const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
   const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content.slice(0, 12000) }] }));
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
       contents,
       generationConfig: { maxOutputTokens: 2048, temperature: 0.7 }
     }),
-    signal: AbortSignal.timeout(45000)
+    signal: AbortSignal.timeout(60000)
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error?.message || "تعذر الاتصال بـ Gemini.");
-  return data.candidates?.[0]?.content?.parts?.map((p: {text?: string}) => p.text || "").join("") || "لم يصل رد نصي من النموذج.";
+  const data = await readJson(response);
+  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك Gemini."));
+  const answer = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("") || "";
+  if (!answer.trim()) throw new Error("لم يصل رد نصي من Gemini.");
+  return answer.trim();
 }
 
 async function askGroq(messages: Msg[]) {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error("مفتاح Groq غير مضبوط في إعدادات الخادم.");
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
     body: JSON.stringify({
       model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
       messages: [
@@ -83,35 +140,103 @@ async function askGroq(messages: Msg[]) {
       max_completion_tokens: 2048,
       temperature: 0.7
     }),
-    signal: AbortSignal.timeout(45000)
+    signal: AbortSignal.timeout(60000)
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error?.message || "تعذر الاتصال بـ Groq.");
-  return data.choices?.[0]?.message?.content || "لم يصل رد نصي من النموذج.";
+  const data = await readJson(response);
+  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك Groq."));
+  const answer = data.choices?.[0]?.message?.content || "";
+  if (!answer.trim()) throw new Error("لم يصل رد نصي من Groq.");
+  return answer.trim();
+}
+
+async function ask(provider: Provider, messages: Msg[]) {
+  if (provider === "openai") return askOpenAI(messages);
+  if (provider === "claude") return askClaude(messages);
+  if (provider === "gemini") return askGemini(messages);
+  return askGroq(messages);
+}
+
+async function askAuto(messages: Msg[]) {
+  const hasOpenAI = isConfigured("openai");
+  const hasClaude = isConfigured("claude");
+
+  // عند توافر المفتاحين، يعمل OpenAI وClaude بالتوازي ثم يدمج OpenAI المسودتين.
+  if (hasOpenAI && hasClaude) {
+    const [openaiResult, claudeResult] = await Promise.allSettled([
+      askOpenAI(messages),
+      askClaude(messages)
+    ]);
+    if (openaiResult.status === "fulfilled" && claudeResult.status === "fulfilled") {
+      const originalQuestion = messages[messages.length - 1]?.content || "";
+      const synthesis: Msg[] = [
+        ...messages.slice(-10),
+        {
+          role: "user",
+          content: [
+            "المطلوب: اكتب إجابة نهائية واحدة للسؤال الأصلي، بعد مراجعة المسودتين أدناه.",
+            "السؤال الأصلي: " + originalQuestion,
+            "مسودة OpenAI:\n" + openaiResult.value,
+            "مسودة Claude:\n" + claudeResult.value,
+            "ادمج نقاط القوة، واحذف التكرار، وصحح التناقضات الظاهرة دون اختراع حقائق. لا تذكر للمستخدم أنك تلقيت مسودتين، ولا تنسب معلومة إلى مصدر لم يُستخدم."
+          ].join("\n\n")
+        }
+      ];
+      try {
+        return { reply: await askOpenAI(synthesis), engine: "hybrid" };
+      } catch {
+        return { reply: openaiResult.value, engine: "openai" };
+      }
+    }
+    if (openaiResult.status === "fulfilled") return { reply: openaiResult.value, engine: "openai" };
+    if (claudeResult.status === "fulfilled") return { reply: claudeResult.value, engine: "claude" };
+  }
+
+  const order: Provider[] = ["openai", "claude", "gemini", "groq"];
+  const failures: string[] = [];
+  for (const provider of order) {
+    if (!isConfigured(provider)) continue;
+    try {
+      return { reply: await ask(provider, messages), engine: provider };
+    } catch (error) {
+      failures.push(provider + ": " + (error instanceof Error ? error.message : "تعذر الاتصال"));
+    }
+  }
+  if (!failures.length) throw new Error("لم يتم إعداد أي محرك. أضف مفتاح OpenAI أو Claude أو Gemini أو Groq في إعدادات Vercel.");
+  throw new Error("تعذر الحصول على إجابة من المحركات المتاحة. تحقق من المفاتيح وحدود الاستخدام في مزود الخدمة.");
 }
 
 export async function POST(req: NextRequest) {
   try {
-    if (!(await checkLimit(req))) return NextResponse.json({ error: "الخدمة غير مهيأة للحماية أو تجاوزت حد الطلبات. حاول لاحقاً." }, { status: 429 });
+    if (!(await checkLimit(req))) {
+      return NextResponse.json({ error: "تم بلوغ حد الطلبات مؤقتاً أو أن خدمة الحماية غير مهيأة. حاول لاحقاً." }, { status: 429 });
+    }
     const body = await req.json();
     const messages = body.messages as Msg[];
-    const provider = body.provider as string;
-    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 24) return NextResponse.json({ error: "صيغة المحادثة غير صحيحة." }, { status: 400 });
-    if (messages.some(m => !["user","assistant"].includes(m.role) || typeof m.content !== "string") || messages[messages.length-1].role !== "user") return NextResponse.json({ error: "الرسائل غير صالحة." }, { status: 400 });
-    if (messages.reduce((n,m)=>n+m.content.length,0) > 60000) return NextResponse.json({ error: "المحادثة طويلة جداً؛ ابدأ محادثة جديدة." }, { status: 413 });
-    let reply: string;
-    if (provider === "gemini") reply = await askGemini(messages);
-    else if (provider === "groq") reply = await askGroq(messages);
-    else {
-      try { reply = process.env.GEMINI_API_KEY ? await askGemini(messages) : await askGroq(messages); }
-      catch (first) {
-        try { reply = process.env.GROQ_API_KEY ? await askGroq(messages) : (() => { throw first; })(); }
-        catch { throw first; }
-      }
+    const requested = typeof body.provider === "string" ? body.provider : "auto";
+    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 24) {
+      return NextResponse.json({ error: "صيغة المحادثة غير صحيحة." }, { status: 400 });
     }
-    return NextResponse.json({ reply });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "حدث خطأ في الخادم.";
+    if (messages.some(m => !m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string") || messages[messages.length - 1].role !== "user") {
+      return NextResponse.json({ error: "الرسائل غير صالحة." }, { status: 400 });
+    }
+    if (messages.reduce((n, m) => n + m.content.length, 0) > 60000) {
+      return NextResponse.json({ error: "المحادثة طويلة جداً؛ ابدأ محادثة جديدة." }, { status: 413 });
+    }
+
+    if (requested === "auto") {
+      const result = await askAuto(messages);
+      return NextResponse.json(result);
+    }
+    if (!PROVIDERS.includes(requested as Provider)) {
+      return NextResponse.json({ error: "محرك الذكاء الاصطناعي المحدد غير معروف." }, { status: 400 });
+    }
+    const provider = requested as Provider;
+    if (!isConfigured(provider)) {
+      return NextResponse.json({ error: "هذا المحرك غير مهيأ بعد. أضف مفتاحه في إعدادات الخادم أو اختر الاختيار التلقائي." }, { status: 503 });
+    }
+    return NextResponse.json({ reply: await ask(provider, messages), engine: provider });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "حدث خطأ غير متوقع في الخادم.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
