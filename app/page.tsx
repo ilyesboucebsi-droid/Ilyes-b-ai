@@ -35,7 +35,9 @@ export default function Home() {
   const [error, setError] = useState("");
   const [researchOpen, setResearchOpen] = useState(false);
   const [researchQuery, setResearchQuery] = useState("");
-  const [papers, setPapers] = useState<Paper[]>([]);\n  const [researchAnalysis, setResearchAnalysis] = useState("");\n  const [researchAnalysisError, setResearchAnalysisError] = useState("");
+  const [papers, setPapers] = useState<Paper[]>([]);
+  const [researchAnalysis, setResearchAnalysis] = useState("");
+  const [researchAnalysisError, setResearchAnalysisError] = useState("");
   const [researchBusy, setResearchBusy] = useState(false);
   const [researchError, setResearchError] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
