@@ -165,7 +165,7 @@ export default function Home() {
           <label className="engine-picker">
             <span>✧</span>
             <select aria-label="AI engine" value={provider} onChange={e => setProvider(e.target.value as Engine)}>
-              <option value="auto">{lang === "ar" ? "تلقائي · مدمج" : "Auto · Hybrid"}</option>
+              <option value="auto">{lang === "ar" ? "تلقائي · دمج عند توافر المحركين" : "Auto · Hybrid when available"}</option>
               <option value="openai" disabled={!providerReady("openai")}>OpenAI{providerReady("openai") ? " ✓" : " · غير مهيأ"}</option>
               <option value="claude" disabled={!providerReady("claude")}>Claude{providerReady("claude") ? " ✓" : " · غير مهيأ"}</option>
               <option value="gemini" disabled={!providerReady("gemini")}>Gemini{providerReady("gemini") ? " ✓" : " · غير مهيأ"}</option>
@@ -179,13 +179,13 @@ export default function Home() {
       </header>
 
       <section className="status-row">
-        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + " محركات متاحة" : readyCount + " engines ready") : (lang === "ar" ? "جارٍ فحص المحركات…" : "Checking engines…")}</span>
+        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + " محركات مهيأة" : readyCount + " engines configured") : (lang === "ar" ? "جارٍ فحص المحركات…" : "Checking engines…")}</span>
         <div className="status-pills">
           <span className={providerReady("openai") ? "ready" : ""}>OpenAI</span>
           <span className={providerReady("claude") ? "ready" : ""}>Claude</span>
           <span className={providerReady("gemini") ? "ready" : ""}>Gemini</span>
           <span className={providerReady("groq") ? "ready" : ""}>Groq</span>
-          <span className={status?.consensus ? "ready" : ""}>Consensus {status?.consensus ? "✓" : "—"}</span>
+          <span className={status?.consensus ? "ready" : ""}>Consensus {status?.consensus ? "مهيأ ✓" : "—"}</span>
         </div>
       </section>
 
