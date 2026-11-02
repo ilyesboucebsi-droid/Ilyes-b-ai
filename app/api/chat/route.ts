@@ -189,9 +189,14 @@ async function askAuto(messages: Msg[]) {
     }
     if (openaiResult.status === "fulfilled") return { reply: openaiResult.value, engine: "openai" };
     if (claudeResult.status === "fulfilled") return { reply: claudeResult.value, engine: "claude" };
+    // Both primary models failed; avoid retrying them and risking duplicate charges.
+    return askFallback(messages, ["gemini", "groq"]);
   }
 
-  const order: Provider[] = ["openai", "claude", "gemini", "groq"];
+  return askFallback(messages, ["openai", "claude", "gemini", "groq"]);
+}
+
+async function askFallback(messages: Msg[], order: Provider[]) {
   const failures: string[] = [];
   for (const provider of order) {
     if (!isConfigured(provider)) continue;
