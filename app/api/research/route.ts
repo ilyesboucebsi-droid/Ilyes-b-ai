@@ -10,7 +10,7 @@ async function checkLimit(req: NextRequest) {
   if (!url || !token) return process.env.NODE_ENV !== "production";
   const redis = new Redis({ url, token });
   const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, "1 m"), prefix: "ilyesb:research" });
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() || "unknown";
   return (await limiter.limit(ip)).success;
 }
 
