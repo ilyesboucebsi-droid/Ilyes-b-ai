@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 type Message = { role: "user" | "assistant"; content: string };
+type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null };
 
 const quick = [
   "اشرح لي هذا الموضوع ببساطة",
@@ -18,6 +19,11 @@ export default function Home() {
   const [lang, setLang] = useState<"ar" | "en">("ar");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [researchQuery, setResearchQuery] = useState("");
+  const [papers, setPapers] = useState<Paper[]>([]);
+  const [researchBusy, setResearchBusy] = useState(false);
+  const [researchError, setResearchError] = useState("");
 
   async function send(text = input) {
     const value = text.trim();
@@ -35,6 +41,25 @@ export default function Home() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
     } finally { setBusy(false); }
+  }
+
+  async function searchPapers(e: React.FormEvent) {
+    e.preventDefault();
+    const query = researchQuery.trim();
+    if (query.length < 3 || researchBusy) return;
+    setResearchBusy(true); setResearchError(""); setPapers([]);
+    try {
+      const res = await fetch("/api/research", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "تعذر تنفيذ البحث الأكاديمي");
+      setPapers(data.papers || []);
+      if (!data.papers?.length) setResearchError("لم يعثر البحث على نتائج. جرّب صياغة أخرى أو استخدم كلمات مفتاحية باللغة الإنجليزية.");
+    } catch (e) {
+      setResearchError(e instanceof Error ? e.message : "حدث خطأ أثناء البحث");
+    } finally { setResearchBusy(false); }
   }
 
   function dictate() {
@@ -56,9 +81,29 @@ export default function Home() {
             <option value="auto">{lang === "ar" ? "اختيار تلقائي" : "Auto select"}</option>
             <option value="gemini">Gemini</option><option value="groq">Groq</option>
           </select>
+          <button className="lang" onClick={() => setResearchOpen(v => !v)}>{lang === "ar" ? "بحث أكاديمي" : "Academic search"}</button>
           <button className="lang" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>{lang === "ar" ? "EN" : "عربي"}</button>
         </div>
       </header>
+
+      {researchOpen && <section className="research">
+        <h2>{lang === "ar" ? "البحث الأكاديمي — Consensus" : "Academic research — Consensus"}</h2>
+        <p>{lang === "ar" ? "ابحث عن الدراسات والأوراق العلمية. اكتب موضوعك، ويفضّل استخدام كلمات مفتاحية دقيقة." : "Search academic papers and studies using a focused query."}</p>
+        <form onSubmit={searchPapers} className="research-form">
+          <input value={researchQuery} onChange={e => setResearchQuery(e.target.value)} placeholder={lang === "ar" ? "مثال: أثر الذكاء الاصطناعي على المسؤولية المدنية" : "e.g. AI and civil liability"} />
+          <button className="send" disabled={researchBusy || researchQuery.trim().length < 3}>{researchBusy ? "…" : (lang === "ar" ? "ابحث" : "Search")}</button>
+        </form>
+        {researchError && <div className="error">{researchError}</div>}
+        {papers.length > 0 && <div className="paper-list">{papers.map((p,i) => <article className="paper" key={i}>
+          <b>{p.title}</b>
+          <small>{[p.authors,p.year,p.journal].filter(Boolean).join(" • ")}</small>
+          {p.abstract && <p>{p.abstract}</p>}
+          <small>{p.citations !== null ? (lang === "ar" ? "الاستشهادات: " : "Citations: ") + p.citations : ""}{p.doi ? " • DOI: " + p.doi : ""}</small>
+          {p.url && <a href={p.url} target="_blank" rel="noreferrer">{lang === "ar" ? "فتح الدراسة" : "Open paper"}</a>}
+        </article>)}</div>}
+        <small className="research-note">{lang === "ar" ? "ملاحظة: البحث يستهلك من حصة Consensus الشهرية. تحقّق من بيانات الدراسة ومصدرها قبل الاستشهاد بها." : "Searches use your monthly Consensus allowance. Verify paper details before citing."}</small>
+      </section>}
+
       <section className="chat">
         {messages.length === 0 ? <div className="welcome">
           <div className="orb">✦</div><h1>{lang === "ar" ? "مرحباً بك في ILYES.B AI" : "Welcome to ILYES.B AI"}</h1>
