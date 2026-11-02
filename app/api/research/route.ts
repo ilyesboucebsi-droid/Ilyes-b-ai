@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
           `الملخص: ${(p.abstract || "لا يوجد ملخص متاح.").slice(0, 3500)}`,
           `DOI: ${p.doi || "غير متاح"}`,
           `الرابط: ${p.url || "غير متاح"}`
-        ].join("\\n")).join("\\n\\n");
+        ].join("\n")).join("\n\n");
 
         const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
           method: "POST",
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             model: process.env.OPENAI_MODEL || "gpt-5.5",
             instructions: "أنت مساعد بحث أكاديمي. حلّل الدراسات المقدمة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن أوجه الاتفاق والاختلاف وحدود الأدلة. استخدم إحالات مرقمة [1] [2] تطابق الدراسات المقدمة. لا تختلق نتائج أو بيانات أو مراجع، ولا تنسب للدراسة ما لا يثبته عنوانها أو ملخصها. إذا كانت الملخصات غير كافية فصرّح بذلك. اجعل الإجابة منظمة وموجزة.",
-            input: `سؤال البحث: ${query}\\n\\nالدراسات التي أعادها Consensus:\\n${sourceMaterial}\\n\\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود الملخصات المتاحة.`,
+            input: `سؤال البحث: ${query}\n\nالدراسات التي أعادها Consensus:\n${sourceMaterial}\n\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود الملخصات المتاحة.`,
             max_output_tokens: 2200
           }),
           signal: AbortSignal.timeout(60000)
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
         const blocks = Array.isArray(result.output) ? result.output.flatMap((item: any) => Array.isArray(item.content) ? item.content : []) : [];
         const answer = typeof result.output_text === "string"
           ? result.output_text
-          : blocks.filter((b: any) => b.type === "output_text" && typeof b.text === "string").map((b: any) => b.text).join("\\n");
+          : blocks.filter((b: any) => b.type === "output_text" && typeof b.text === "string").map((b: any) => b.text).join("\n");
         if (!answer.trim()) throw new Error("لم يصل رد تحليلي من OpenAI.");
         analysis = answer.trim();
       } catch (error) {
