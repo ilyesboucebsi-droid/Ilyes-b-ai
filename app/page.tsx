@@ -65,8 +65,9 @@ export default function Home() {
   async function send(text = input) {
     const value = text.trim();
     if ((!value && !attachedImage) || busy) return;
+    const imageForRequest = attachedImage;
     const messageText = value || (lang === "ar" ? "حلّل هذه الصورة واستخرج النص الظاهر فيها بدقة، مع الحفاظ على ترتيب الفقرات." : "Analyze this image and accurately extract all visible text, preserving paragraph order.");
-    const next: Message[] = [...messages, { role: "user", content: messageText, ...(attachedImage ? { images: [attachedImage] } : {}) }];
+    const next: Message[] = [...messages, { role: "user", content: messageText, ...(imageForRequest ? { images: [imageForRequest] } : {}) }];
     setMessages(next);
     setInput("");
     setAttachedImage(null);
@@ -83,6 +84,9 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || "تعذر إكمال الطلب");
       setMessages([...next, { role: "assistant", content: data.reply, engine: data.engine || "auto" }]);
     } catch (e) {
+      setMessages(messages);
+      setInput(value);
+      if (imageForRequest) setAttachedImage(imageForRequest);
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
     } finally {
       setBusy(false);
