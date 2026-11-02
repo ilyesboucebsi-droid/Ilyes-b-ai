@@ -42,6 +42,7 @@ export default function Home() {
   const [prompts, setPrompts] = useState<Prompt[]>(DEFAULT_PROMPTS);
   const [promptsLoaded, setPromptsLoaded] = useState(false);
   const [managePrompts, setManagePrompts] = useState(false);
+  const [showQuickPrompts, setShowQuickPrompts] = useState(false);
   const [newPrompt, setNewPrompt] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -253,8 +254,8 @@ export default function Home() {
           <h1>{lang === "ar" ? <>أهلاً بك في <span>ILYES.B AI</span></> : <>Welcome to <span>ILYES.B AI</span></>}</h1>
           <p className="welcome-copy">{lang === "ar" ? "اسأل، ابحث، اكتب، وتعلّم. مساعد واحد يجمع أدوات متعددة في تجربة بسيطة." : "Ask, research, write and learn. Multiple AI engines in one clear workspace."}</p>
 
-          <div className="quick-heading"><span>{lang === "ar" ? "ابدأ بأحد الأوامر السريعة" : "START WITH A QUICK PROMPT"}</span><button onClick={() => setManagePrompts(v => !v)}>{managePrompts ? (lang === "ar" ? "إغلاق الإدارة" : "Close manager") : (lang === "ar" ? "إدارة الأوامر ＋" : "Manage prompts ＋")}</button></div>
-          <div className="quick-prompts">{prompts.map(p => <button key={p.id} onClick={() => send(p.text)}><span>✧</span>{p.text}<i>↗</i></button>)}</div>
+          <div className="quick-heading"><span>{lang === "ar" ? "أوامر جاهزة" : "QUICK PROMPTS"}</span><button className="quick-toggle" onClick={() => { setShowQuickPrompts(v => !v); setManagePrompts(false); }}>{showQuickPrompts ? (lang === "ar" ? "إخفاء الأوامر ▲" : "Hide prompts ▲") : (lang === "ar" ? "عرض الأوامر الجاهزة ▼" : "Show prompts ▼")}</button></div>
+          {showQuickPrompts && <><div className="quick-prompts">{prompts.map(p => <button key={p.id} onClick={() => send(p.text)}><span>✧</span>{p.text}<i>↗</i></button>)}</div><div className="prompt-manage-link"><button onClick={() => setManagePrompts(v => !v)}>{managePrompts ? (lang === "ar" ? "إغلاق الإدارة" : "Close manager") : (lang === "ar" ? "تخصيص الأوامر وتعديلها" : "Manage prompts")}</button></div></>}
           {managePrompts && <div className="prompt-manager">
             <form onSubmit={addPrompt} className="add-prompt-form"><input value={newPrompt} onChange={e => setNewPrompt(e.target.value)} placeholder={lang === "ar" ? "اكتب أمراً سريعاً جديداً…" : "Add a new quick prompt…"} /><button className="primary-button" disabled={!newPrompt.trim() || prompts.length >= 12}>＋</button></form>
             {prompts.map(p => <div className="prompt-edit-row" key={p.id}>
@@ -274,6 +275,7 @@ export default function Home() {
       <div className="composer-wrap">
         <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
           <input id="image-upload" className="hidden-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { selectImage(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+          <button type="button" className="search-side-button" onClick={() => setResearchOpen(v => !v)} title={lang === "ar" ? "البحث الأكاديمي" : "Academic search"} aria-label="Academic search">⌕ <span>{lang === "ar" ? "بحث" : "Search"}</span></button>
           <button type="button" className="image-button" onClick={() => document.getElementById("image-upload")?.click()} title={lang === "ar" ? "إرفاق صورة" : "Attach image"} aria-label="Attach image">▧</button>
           <button type="button" className="voice-button" onClick={dictate} title={lang === "ar" ? "إملاء صوتي" : "Voice input"} aria-label="Voice input">♩</button>
           <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={lang === "ar" ? "اكتب سؤالك أو الصق النص هنا…" : "Ask anything or paste your text…"} rows={1} />
