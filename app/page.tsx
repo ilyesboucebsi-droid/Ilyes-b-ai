@@ -193,7 +193,6 @@ export default function Home() {
 
   const providerReady = (name: "openai" | "claude" | "gemini" | "groq") => status?.providers?.[name] ?? false;
   const readyCount = status ? Object.values(status.providers).filter(Boolean).length : 0;
-  const isHybridReady = providerReady("openai") && providerReady("claude");
 
   return (
     <main className="app-shell" dir={lang === "ar" ? "rtl" : "ltr"}>
