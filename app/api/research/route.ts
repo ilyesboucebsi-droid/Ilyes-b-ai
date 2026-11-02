@@ -44,13 +44,13 @@ export async function POST(req: NextRequest) {
 
     const url = new URL("https://api.consensus.app/v1/search");
     url.searchParams.set("query", query);
-    url.searchParams.set("page_size", "8");
+    url.searchParams.set("page_size", "5");
     url.searchParams.set("include_semantic_score", "true");
 
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: { "x-api-key": key, "Accept": "application/json" },
-      signal: AbortSignal.timeout(30000)
+      signal: AbortSignal.timeout(22000)
     });
     const data = await response.json();
     if (!response.ok) {
@@ -92,12 +92,12 @@ export async function POST(req: NextRequest) {
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + openaiKey },
           body: JSON.stringify({
             model: process.env.OPENAI_MODEL || "gpt-6.1-sol",
-      reasoning: { effort: process.env.OPENAI_REASONING_EFFORT || "medium" },
-            instructions: "أنت مساعد بحث أكاديمي. حلّل الدراسات المقدمة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن أوجه الاتفاق والاختلاف وحدود الأدلة. استخدم إحالات مرقمة [1] [2] تطابق الدراسات المقدمة. لا تختلق نتائج أو بيانات أو مراجع، ولا تنسب للدراسة ما لا يثبته عنوانها أو ملخصها. إذا كانت الملخصات غير كافية فصرّح بذلك. اجعل الإجابة منظمة وموجزة.",
+      reasoning: { effort: process.env.OPENAI_REASONING_EFFORT || "low" },
+            instructions: "أنت مساعد بحث أكاديمي دقيق. حلّل الدراسات المعروضة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن الاتفاق والاختلاف وحدود الأدلة، واستخدم إحالات [1] [2] المطابقة لقائمة الدراسات. لا تختلق بيانات أو مراجع أو استنتاجات. صرّح بنقص الملخصات عند الحاجة. إذا كان السؤال قانونياً، فلا تعتبر الدراسات مصدراً رسمياً للتشريع أو الأحكام، ولا تخترع أرقام مواد أو تنسب إليها أحكاماً غير متحققة. عند طلب مقالة جامعية، اكتب مقدمة بإشكالية وخطة، ثم عرضاً تحليلياً مترابطاً بعناوين محدودة، وخاتمة تستخلص النتائج. قلل الجداول والتعدادات والعبارات العامة والتكرار، وعرّف المصطلحات القانونية بدقة وميّز بين المفاهيم المتقاربة. استخدم عربية طبيعية مباشرة تناسب المستوى المطلوب.",
             input: `سؤال البحث: ${query}\n\nالدراسات التي أعادها Consensus:\n${sourceMaterial}\n\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود الملخصات المتاحة.`,
-            max_output_tokens: 2200
+            max_output_tokens: 1400
           }),
-          signal: AbortSignal.timeout(60000)
+          signal: AbortSignal.timeout(35000)
         });
         const result = await openaiResponse.json();
         if (!openaiResponse.ok) {
