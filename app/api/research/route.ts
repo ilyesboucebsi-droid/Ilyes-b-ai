@@ -4,14 +4,18 @@ import { Ratelimit } from "@upstash/ratelimit";
 
 export const runtime = "nodejs";
 
-async function checkLimit(req: NextRequest) {
+async function checkLimit(req: NextRequest): Promise<"allowed" | "limited" | "unavailable"> {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return process.env.NODE_ENV !== "production";
-  const redis = new Redis({ url, token });
-  const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, "1 m"), prefix: "ilyesb:research" });
-  const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "unknown";
-  return (await limiter.limit(ip)).success;
+  if (!url || !token) return "unavailable";
+  try {
+    const redis = new Redis({ url, token });
+    const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, "1 m"), prefix: "ilyesb:research" });
+    const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "unknown";
+    return (await limiter.limit(ip)).success ? "allowed" : "limited";
+  } catch {
+    return "unavailable";
+  }
 }
 
 function text(value: unknown): string {
@@ -22,8 +26,12 @@ function text(value: unknown): string {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!(await checkLimit(req))) {
-      return NextResponse.json({ error: "تعذر تنفيذ البحث الآن أو تجاوزت حد الطلبات. حاول لاحقاً." }, { status: 429 });
+    const limitState = await checkLimit(req);
+    if (limitState !== "allowed") {
+      return NextResponse.json(
+        { error: limitState === "limited" ? "تم بلوغ حد البحث مؤقتاً. حاول بعد دقيقة." : "خدمة الحماية غير متاحة حالياً. يرجى المحاولة لاحقاً." },
+        { status: limitState === "limited" ? 429 : 503 }
+      );
     }
     const body = await req.json();
     const query = typeof body.query === "string" ? body.query.trim() : "";
