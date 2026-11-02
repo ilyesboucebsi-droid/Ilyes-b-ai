@@ -91,7 +91,8 @@ export async function POST(req: NextRequest) {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + openaiKey },
           body: JSON.stringify({
-            model: process.env.OPENAI_MODEL || "gpt-5.5",
+            model: process.env.OPENAI_MODEL || "gpt-6.1-sol",
+      reasoning: { effort: process.env.OPENAI_REASONING_EFFORT || "medium" },
             instructions: "أنت مساعد بحث أكاديمي. حلّل الدراسات المقدمة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن أوجه الاتفاق والاختلاف وحدود الأدلة. استخدم إحالات مرقمة [1] [2] تطابق الدراسات المقدمة. لا تختلق نتائج أو بيانات أو مراجع، ولا تنسب للدراسة ما لا يثبته عنوانها أو ملخصها. إذا كانت الملخصات غير كافية فصرّح بذلك. اجعل الإجابة منظمة وموجزة.",
             input: `سؤال البحث: ${query}\n\nالدراسات التي أعادها Consensus:\n${sourceMaterial}\n\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود الملخصات المتاحة.`,
             max_output_tokens: 2200
