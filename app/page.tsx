@@ -6,7 +6,7 @@ type Engine = "auto" | "openai" | "claude" | "gemini" | "groq";
 type Message = { role: "user" | "assistant"; content: string; engine?: string };
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null };
 type Prompt = { id: string; text: string };
-type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq", boolean>; consensus: boolean };
+type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq", boolean>; consensus: boolean; rateLimitConfigured: boolean };
 
 const DEFAULT_PROMPTS: Prompt[] = [
   { id: "explain", text: "اشرح لي هذا الموضوع ببساطة" },
@@ -186,6 +186,7 @@ export default function Home() {
           <span className={providerReady("gemini") ? "ready" : ""}>Gemini</span>
           <span className={providerReady("groq") ? "ready" : ""}>Groq</span>
           <span className={status?.consensus ? "ready" : ""}>Consensus {status?.consensus ? "مهيأ ✓" : "—"}</span>
+          <span className={status?.rateLimitConfigured ? "ready" : ""}>{lang === "ar" ? "الحماية " : "Rate limit "}{status?.rateLimitConfigured ? "✓" : "—"}</span>
         </div>
       </section>
 
