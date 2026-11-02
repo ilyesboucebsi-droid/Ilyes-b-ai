@@ -252,14 +252,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "أرسل صورة واحدة في كل طلب، بحجم مضغوط لا يتجاوز الحد المسموح." }, { status: 413 });
     }
     const hasImages = imageCount > 0;
-    if (hasImages && requested !== "auto" && requested !== "gemini") {
-      return NextResponse.json({ error: "تحليل الصور واستخراج النص منها متاح حالياً عبر محرك Gemini فقط. اختر Gemini أو الوضع التلقائي." }, { status: 400 });
-    }
-    if (hasImages && !isConfigured("gemini")) {
-      return NextResponse.json({ error: "ميزة الصور تحتاج إلى تهيئة مفتاح Gemini في إعدادات الخادم." }, { status: 503 });
+    if (hasImages) {
+      if (!isConfigured("gemini")) {
+        return NextResponse.json({ error: "ميزة الصور تحتاج إلى تهيئة مفتاح Gemini في إعدادات الخادم." }, { status: 503 });
+      }
+      // الصور تُحلل عبر Gemini تلقائياً مهما كان المحرك المحدد في القائمة.
+      return NextResponse.json({ reply: await askGemini(messages), engine: "gemini" });
     }
     if (requested === "auto") {
-      if (hasImages) return NextResponse.json({ reply: await askGemini(messages), engine: "gemini" });
       const result = await askAuto(messages);
       return NextResponse.json(result);
     }
