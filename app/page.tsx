@@ -4,7 +4,9 @@ import { useEffect, useState, type FormEvent } from "react";
 
 type Engine = "auto" | "openai" | "claude" | "gemini" | "groq";
 type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[] };
-type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null };
+type SearchSource = "consensus" | "semantic_scholar" | "openalex";
+type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null; sources: SearchSource[] };
+type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty" | "error"; count: number; error: string | null };
 type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq", boolean>; consensus: boolean; rateLimitConfigured: boolean };
 
 const ENGINE_LABELS: Record<string, string> = {
@@ -28,6 +30,8 @@ export default function Home() {
   const [researchOpen, setResearchOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [researchQuery, setResearchQuery] = useState("");
+  const [searchSources, setSearchSources] = useState<SearchSource[]>(["consensus", "semantic_scholar", "openalex"]);
+  const [searchStatuses, setSearchStatuses] = useState<SearchStatus[]>([]);
   const [papers, setPapers] = useState<Paper[]>([]);
   const [researchAnalysis, setResearchAnalysis] = useState("");
   const [researchAnalysisError, setResearchAnalysisError] = useState("");
@@ -131,7 +135,7 @@ export default function Home() {
       const res = await fetch("/api/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query })
+        body: JSON.stringify({ query, sources: searchSources })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "تعذر تنفيذ البحث الأكاديمي");
@@ -246,10 +250,29 @@ export default function Home() {
 
       {researchOpen && <section className="research-panel glass">
         <div className="panel-heading"><div><span className="eyebrow">ACADEMIC DISCOVERY</span><h2>{lang === "ar" ? "البحث العلمي عبر Consensus" : "Academic search with Consensus"}</h2></div><button className="close-button" onClick={() => setResearchOpen(false)} aria-label="Close">×</button></div>
-        <p>{lang === "ar" ? "هذه الخاصية وحدها تستدعي خدمة Consensus للبحث عن الدراسات والأوراق العلمية. المحادثة العادية لا تستخدم Consensus تلقائياً." : "This dedicated feature calls Consensus to find academic papers. Normal chat does not use Consensus automatically."}</p>
+        <p>{lang === "ar" ? "اختر محركاً واحداً أو ادمج المحركات الثلاثة في بحث متزامن. تُجمع النتائج وتُزال المكررات، ثم يحلل OpenAI الدراسات المتاحة." : "Choose one engine or combine all three in a parallel search. Results are merged and deduplicated, then OpenAI analyzes the available papers."}</p>
+        <div className="research-engine-select">
+          <div className="research-engine-heading">
+            <b>{lang === "ar" ? "محركات البحث الأكاديمي" : "Academic search engines"}</b>
+            <button type="button" onClick={() => setSearchSources(searchSources.length === 3 ? [] : ["consensus", "semantic_scholar", "openalex"])}>{searchSources.length === 3 ? (lang === "ar" ? "إلغاء تحديد الكل" : "Clear all") : (lang === "ar" ? "تحديد الكل" : "Select all")}</button>
+          </div>
+          <div className="research-engine-options">
+            {([
+              ["consensus", "Consensus", lang === "ar" ? "بحث دلالي عن الدراسات والأدلة العلمية" : "Semantic discovery of research and evidence"],
+              ["semantic_scholar", "Semantic Scholar", lang === "ar" ? "أوراق علمية ومؤلفون واستشهادات" : "Papers, authors and citations"],
+              ["openalex", "OpenAlex", lang === "ar" ? "فهرس واسع للمنشورات والباحثين" : "Broad index of works and researchers"]
+            ] as [SearchSource, string, string][]).map(([id, name, description]) => <label className={"research-engine-option " + (searchSources.includes(id) ? "selected" : "")} key={id}>
+              <input type="checkbox" checked={searchSources.includes(id)} onChange={e => setSearchSources(current => e.target.checked ? [...current, id] : current.filter(x => x !== id))} />
+              <span className="research-engine-check">{searchSources.includes(id) ? "✓" : ""}</span>
+              <span className="research-engine-copy"><b>{name}</b><small>{description}</small></span>
+            </label>)}
+          </div>
+          <div className="research-merge-note">{lang === "ar" ? `تم اختيار ${searchSources.length} من 3 محركات` : `${searchSources.length} of 3 engines selected`}</div>
+          {searchStatuses.length > 0 && <div className="research-source-status">{searchStatuses.map(source => <span className={"source-status " + source.status} key={source.id}><i />{source.name}: {source.status === "success" ? (lang === "ar" ? ` ${source.count} نتيجة` : ` ${source.count} results`) : source.status === "empty" ? (lang === "ar" ? " لا توجد نتائج" : " no results") : (lang === "ar" ? " تعذر الاتصال" : " unavailable")}</span>)}</div>}
+        </div>
         <form onSubmit={searchPapers} className="research-form">
           <input value={researchQuery} onChange={e => setResearchQuery(e.target.value)} placeholder={lang === "ar" ? "مثال: أثر الذكاء الاصطناعي على المسؤولية المدنية" : "e.g. AI and civil liability"} />
-          <button className="primary-button" disabled={researchBusy || researchQuery.trim().length < 3}>{researchBusy ? "…" : (lang === "ar" ? "ابحث عن دراسات" : "Search papers")}</button>
+          <button className="primary-button research-merge-button" disabled={researchBusy || researchQuery.trim().length < 3 || searchSources.length === 0}>{researchBusy ? (lang === "ar" ? "جارٍ البحث في المحركات…" : "Searching engines…") : (lang === "ar" ? (searchSources.length > 1 ? "⟷ دمج المحركات والبحث" : "ابحث بهذا المحرك") : (searchSources.length > 1 ? "⟷ Merge engines & search" : "Search this engine"))}</button>
         </form>
         {researchError && <div className="inline-error">{researchError}</div>}
         {researchAnalysis && <section className="research-analysis">
@@ -261,7 +284,7 @@ export default function Home() {
           <b>{p.title}</b>
           <small>{[p.authors, p.year, p.journal].filter(Boolean).join(" · ")}</small>
           {p.abstract && <p>{p.abstract}</p>}
-          <small>{p.citations !== null ? (lang === "ar" ? "الاستشهادات: " : "Citations: ") + p.citations : ""}{p.doi ? " · DOI: " + p.doi : ""}</small>
+          <small>{p.citations !== null ? (lang === "ar" ? "الاستشهادات: " : "Citations: ") + p.citations : ""}{p.doi ? " · DOI: " + p.doi : ""}</small><div className="paper-sources">{(p.sources || []).map(source => <span key={source}>{source === "semantic_scholar" ? "Semantic Scholar" : source === "openalex" ? "OpenAlex" : "Consensus"}</span>)}</div>
           {p.url && <a href={p.url} target="_blank" rel="noreferrer">{lang === "ar" ? "فتح الدراسة ↗" : "Open paper ↗"}</a>}
         </article>)}</div>}
         <small className="research-footnote">{lang === "ar" ? "تحقّق من بيانات الدراسة والنص الكامل قبل الاستشهاد بها. استخدام البحث يخضع لحصة حساب Consensus." : "Verify paper details and full text before citing. Searches count toward your Consensus allowance."}</small>
