@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 type Engine = "auto" | "openai" | "claude" | "gemini" | "groq";
-type Message = { role: "user" | "assistant"; content: string; engine?: string };
+type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[] };
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null };
 type Prompt = { id: string; text: string };
 type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq", boolean>; consensus: boolean; rateLimitConfigured: boolean };
@@ -26,6 +26,8 @@ const ENGINE_LABELS: Record<string, string> = {
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [imageError, setImageError] = useState("");
   const [provider, setProvider] = useState<Engine>("auto");
   const [lang, setLang] = useState<"ar" | "en">("ar");
   const [busy, setBusy] = useState(false);
@@ -62,10 +64,13 @@ export default function Home() {
 
   async function send(text = input) {
     const value = text.trim();
-    if (!value || busy) return;
-    const next: Message[] = [...messages, { role: "user", content: value }];
+    if ((!value && !attachedImage) || busy) return;
+    const messageText = value || (lang === "ar" ? "حلّل هذه الصورة واستخرج النص الظاهر فيها بدقة، مع الحفاظ على ترتيب الفقرات." : "Analyze this image and accurately extract all visible text, preserving paragraph order.");
+    const next: Message[] = [...messages, { role: "user", content: messageText, ...(attachedImage ? { images: [attachedImage] } : {}) }];
     setMessages(next);
     setInput("");
+    setAttachedImage(null);
+    setImageError("");
     setBusy(true);
     setError("");
     try {
@@ -82,6 +87,23 @@ export default function Home() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function selectImage(file?: File) {
+    setImageError("");
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setImageError(lang === "ar" ? "الصيغ المدعومة: JPG وPNG وWEBP." : "Supported formats: JPG, PNG and WEBP.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError(lang === "ar" ? "حجم الصورة يتجاوز 5 ميغابايت. اختر صورة أصغر." : "Image exceeds 5 MB. Choose a smaller image.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setAttachedImage(typeof reader.result === "string" ? reader.result : null);
+    reader.onerror = () => setImageError(lang === "ar" ? "تعذر قراءة الصورة." : "Could not read the image.");
+    reader.readAsDataURL(file);
   }
 
   async function copyAnswer(content: string, index: number) {
@@ -230,7 +252,8 @@ export default function Home() {
           </div>}
         </div> : <div className="messages-list">{messages.map((m, i) => <article key={i} className={"message-card " + m.role}>
           <div className="message-heading"><div className="message-avatar">{m.role === "user" ? "أ" : "✦"}</div><div><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b>{m.role === "assistant" && m.engine && <small>{ENGINE_LABELS[m.engine] || m.engine}</small>}</div></div>
-          <div className="message-content">{m.content}</div>
+          {m.images?.map((src, imageIndex) => <img key={imageIndex} className="message-image" src={src} alt={lang === "ar" ? "الصورة المرفقة" : "Attached image"} />)}
+          {m.content && <div className="message-content">{m.content}</div>}
           {m.role === "assistant" && <button type="button" className="copy-button" onClick={() => copyAnswer(m.content, i)}>{copiedIndex === i ? "✓ " + (lang === "ar" ? "تم النسخ" : "Copied") : "▢ " + (lang === "ar" ? "نسخ الإجابة" : "Copy answer")}</button>}
         </article>)}{busy && <div className="thinking"><span /><span /><span />{lang === "ar" ? "جارٍ إعداد الإجابة…" : "Preparing your answer…"}</div>}</div>}
       </section>
@@ -238,10 +261,14 @@ export default function Home() {
       {error && <div className="error-banner"><span>!</span>{error}<button onClick={() => setError("")}>×</button></div>}
       <div className="composer-wrap">
         <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
+          <input id="image-upload" className="hidden-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { selectImage(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+          <button type="button" className="image-button" onClick={() => document.getElementById("image-upload")?.click()} title={lang === "ar" ? "إرفاق صورة" : "Attach image"} aria-label="Attach image">▧</button>
           <button type="button" className="voice-button" onClick={dictate} title={lang === "ar" ? "إملاء صوتي" : "Voice input"} aria-label="Voice input">♩</button>
           <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={lang === "ar" ? "اكتب سؤالك أو الصق النص هنا…" : "Ask anything or paste your text…"} rows={1} />
-          <button className="send-button" disabled={busy || !input.trim()} aria-label="Send">{busy ? "…" : "↑"}</button>
+          <button className="send-button" disabled={busy || (!input.trim() && !attachedImage)} aria-label="Send">{busy ? "…" : "↑"}</button>
         </form>
+        {attachedImage && <div className="attachment-preview"><img src={attachedImage} alt={lang === "ar" ? "معاينة الصورة" : "Image preview"} /><span>{lang === "ar" ? "صورة جاهزة للإرسال" : "Image ready to send"}</span><button type="button" onClick={() => setAttachedImage(null)} aria-label="Remove image">×</button></div>}
+        {imageError && <div className="inline-error">{imageError}</div>}
         <div className="composer-hint"><span>{lang === "ar" ? "Enter للإرسال · Shift + Enter لسطر جديد" : "Enter to send · Shift + Enter for a new line"}</span><span>{lang === "ar" ? "قد تخطئ نماذج الذكاء الاصطناعي؛ راجع المعلومات المهمة." : "AI can make mistakes. Verify important information."}</span></div>
       </div>
       <footer className="site-footer"><span>ILYES.B AI</span><i>•</i>{lang === "ar" ? "معرفة أوسع، وقرار أوعى." : "Broader knowledge. Better judgment."}</footer>
