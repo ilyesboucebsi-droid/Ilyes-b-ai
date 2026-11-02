@@ -17,3 +17,33 @@
 @media(max-width:760px){.app-shell{padding:10px 11px}.topbar{padding:9px 10px;min-height:60px;align-items:flex-start;flex-direction:column;gap:8px}.brand{min-width:0}.brand-mark{width:35px;height:35px}.toolbar{width:100%;justify-content:flex-start;gap:6px}.engine-picker{flex:1;min-width:0}.engine-picker select{max-width:none;width:100%;font-size:11px}.tool-button{padding:7px 9px}.status-row{align-items:flex-start;flex-wrap:wrap;padding-top:9px}.conversation-area{min-height:370px;padding:25px 0 14px}.welcome{padding:0 2px}.quick-prompts{grid-template-columns:1fr}.quick-prompts button{padding:10px}.paper-list{grid-template-columns:1fr}.research-form{flex-direction:column}.research-form .primary-button{width:100%}.message-card{padding:13px}.message-content{font-size:12px}.composer-hint{font-size:8px}.composer-hint span:last-child{max-width:54%;text-align:end}}
 @media(max-width:420px){.brand small{font-size:9px}.tool-button span{display:none}.welcome h1{font-size:25px}.quick-heading{font-size:10px}.prompt-edit-row{flex-wrap:wrap}.prompt-edit-row>span{min-width:100%}.composer{gap:5px;padding:7px}.voice-button,.send-button,.image-button{width:34px;height:34px;flex-basis:34px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
+
+
+/* Centered, clearer first-use workspace */
+@media(min-width:761px){
+  .app-shell{max-width:1120px;padding-left:30px;padding-right:30px}
+  .conversation-area:not(.has-messages){flex:0 0 auto;min-height:0;padding:clamp(30px,7vh,76px) 0 12px}
+  .welcome{max-width:800px}
+  .welcome h1{font-size:clamp(30px,4vw,40px)}
+  .welcome-copy{font-size:15px;margin-bottom:18px}
+  .composer-wrap{position:relative;bottom:auto;flex:1;display:flex;flex-direction:column;justify-content:center;width:100%;max-width:800px;margin:0 auto;padding:10px 0 20px;background:none}
+  .composer{padding:11px;border-radius:17px;gap:9px;box-shadow:0 8px 30px #1e375512}
+  .composer textarea{font-size:16px;min-height:54px;padding:10px}
+  .voice-button,.send-button,.image-button,.search-side-button{width:44px;height:44px;flex-basis:44px;border-radius:12px}
+  .search-side-button{flex:0 0 auto;width:auto;padding:0 15px}
+}
+.quick-heading{max-width:800px;margin-top:18px}
+.quick-heading>span{font-size:12px}
+.quick-heading .quick-toggle{border:1px solid #dce5ef;border-radius:9px;background:#fff;padding:8px 13px;color:var(--accent);font-size:12px;cursor:pointer}
+.quick-heading .quick-toggle:hover,.prompt-manage-link button:hover{background:var(--soft);border-color:#b7cbe0}
+.prompt-manage-link{text-align:start;max-width:710px;margin:7px auto 0}
+.prompt-manage-link button{border:0;background:transparent;color:var(--accent);font-size:11px;cursor:pointer;padding:5px 0}
+.search-side-button{display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid #cbd9e8;background:#edf4fb;color:#315f91;font-size:13px;font-weight:700;cursor:pointer}
+.search-side-button:hover{background:#e2edf8;border-color:#a9c1dc}
+@media(max-width:760px){
+  .conversation-area:not(.has-messages){min-height:0;flex:0 0 auto;padding:35px 0 12px}
+  .composer-wrap{position:relative;bottom:auto;flex:1;display:flex;flex-direction:column;justify-content:center;padding:12px 0 18px;background:none}
+  .composer textarea{font-size:15px;min-height:48px}
+  .search-side-button{height:38px;flex:0 0 auto;padding:0 10px;border:1px solid #cbd9e8;border-radius:10px;background:#edf4fb;color:#315f91;font-size:12px;font-weight:700;cursor:pointer}
+}
+@media(max-width:420px){.search-side-button{padding:0 8px;font-size:11px}.composer textarea{font-size:14px}}
