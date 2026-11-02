@@ -77,7 +77,7 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, provider })
+        body: JSON.stringify({ messages: next.slice(-12).map((message, index, list) => ({ ...message, ...(index === list.length - 1 ? {} : { images: undefined }) })), provider })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "تعذر إكمال الطلب");
@@ -89,21 +89,42 @@ export default function Home() {
     }
   }
 
-  function selectImage(file?: File) {
+  async function selectImage(file?: File) {
     setImageError("");
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setImageError(lang === "ar" ? "الصيغ المدعومة: JPG وPNG وWEBP." : "Supported formats: JPG, PNG and WEBP.");
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      setImageError(lang === "ar" ? "حجم الصورة يتجاوز 3 ميغابايت. اختر صورة أصغر." : "Image exceeds 3 MB. Choose a smaller image.");
+    if (file.size > 12 * 1024 * 1024) {
+      setImageError(lang === "ar" ? "حجم الصورة الأصلية كبير جداً (الحد 12 ميغابايت)." : "Original image is too large (12 MB maximum).");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setAttachedImage(typeof reader.result === "string" ? reader.result : null);
-    reader.onerror = () => setImageError(lang === "ar" ? "تعذر قراءة الصورة." : "Could not read the image.");
-    reader.readAsDataURL(file);
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("canvas");
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const blob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(value => value ? resolve(value) : reject(new Error("compress")), "image/jpeg", 0.78)
+      );
+      if (blob.size > 1_400_000) throw new Error("large");
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") setAttachedImage(reader.result);
+        else setImageError(lang === "ar" ? "تعذر تجهيز الصورة." : "Could not prepare the image.");
+      };
+      reader.onerror = () => setImageError(lang === "ar" ? "تعذر قراءة الصورة." : "Could not read the image.");
+      reader.readAsDataURL(blob);
+      if (provider !== "auto" && provider !== "gemini") setProvider("auto");
+    } catch {
+      setImageError(lang === "ar" ? "تعذر ضغط الصورة. جرّب صورة أصغر أو بصيغة أخرى." : "Could not compress the image. Try a smaller image or another format.");
+    }
   }
 
   async function copyAnswer(content: string, index: number) {
@@ -200,16 +221,9 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="status-row">
-        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + " محركات مهيأة" : readyCount + " engines configured") : (lang === "ar" ? "جارٍ فحص المحركات…" : "Checking engines…")}</span>
-        <div className="status-pills">
-          <span className={providerReady("openai") ? "ready" : ""}>OpenAI</span>
-          <span className={providerReady("claude") ? "ready" : ""}>Claude</span>
-          <span className={providerReady("gemini") ? "ready" : ""}>Gemini</span>
-          <span className={providerReady("groq") ? "ready" : ""}>Groq</span>
-          <span className={status?.consensus ? "ready" : ""}>Consensus {status?.consensus ? "مهيأ ✓" : "—"}</span>
-          <span className={status?.rateLimitConfigured ? "ready" : ""}>{lang === "ar" ? "الحماية " : "Rate limit "}{status?.rateLimitConfigured ? "✓" : "—"}</span>
-        </div>
+      <section className="status-row" aria-live="polite">
+        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + " من 4 محركات مهيأة" : readyCount + " of 4 engines configured") : (lang === "ar" ? "جارٍ فحص الخدمات…" : "Checking services…")}</span>
+        <span className="status-note">{status ? (status.consensus ? (lang === "ar" ? "البحث الأكاديمي مهيأ" : "Academic search configured") : (lang === "ar" ? "البحث الأكاديمي غير مهيأ" : "Academic search not configured")) : (lang === "ar" ? "قد يستغرق الفحص لحظات" : "This may take a moment")}</span>
       </section>
 
       {researchOpen && <section className="research-panel glass">
@@ -232,15 +246,10 @@ export default function Home() {
 
       <section className={"conversation-area " + (messages.length ? "has-messages" : "")}>
         {messages.length === 0 ? <div className="welcome">
-          <div className="hero-symbol"><div className="hero-core">✦</div><span className="orbit orbit-a" /><span className="orbit orbit-b" /></div>
           <span className="eyebrow">{lang === "ar" ? "ذكاء متعدد المحركات" : "MULTI-ENGINE INTELLIGENCE"}</span>
           <h1>{lang === "ar" ? <>أهلاً بك في <span>ILYES.B AI</span></> : <>Welcome to <span>ILYES.B AI</span></>}</h1>
           <p className="welcome-copy">{lang === "ar" ? "اسأل، ابحث، اكتب، وتعلّم. مساعد واحد يجمع أدوات متعددة في تجربة بسيطة." : "Ask, research, write and learn. Multiple AI engines in one clear workspace."}</p>
-          <div className="capability-grid">
-            <div><span>⌘</span><b>{lang === "ar" ? "فهم وتحليل" : "Understand"}</b><small>{lang === "ar" ? "شرح الأفكار والمسائل" : "Explain complex ideas"}</small></div>
-            <div><span>✎</span><b>{lang === "ar" ? "كتابة وتحرير" : "Write"}</b><small>{lang === "ar" ? "صياغة وتلخيص ومراجعة" : "Rewrite and summarize"}</small></div>
-            <div><span>⌕</span><b>{lang === "ar" ? "بحث أكاديمي" : "Research"}</b><small>{lang === "ar" ? "الوصول إلى الدراسات" : "Find academic papers"}</small></div>
-          </div>
+
           <div className="quick-heading"><span>{lang === "ar" ? "ابدأ بأحد الأوامر السريعة" : "START WITH A QUICK PROMPT"}</span><button onClick={() => setManagePrompts(v => !v)}>{managePrompts ? (lang === "ar" ? "إغلاق الإدارة" : "Close manager") : (lang === "ar" ? "إدارة الأوامر ＋" : "Manage prompts ＋")}</button></div>
           <div className="quick-prompts">{prompts.map(p => <button key={p.id} onClick={() => send(p.text)}><span>✧</span>{p.text}<i>↗</i></button>)}</div>
           {managePrompts && <div className="prompt-manager">
