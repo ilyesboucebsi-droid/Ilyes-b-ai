@@ -5,15 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 type Engine = "auto" | "openai" | "claude" | "gemini" | "groq";
 type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[] };
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null };
-type Prompt = { id: string; text: string };
 type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq", boolean>; consensus: boolean; rateLimitConfigured: boolean };
-
-const DEFAULT_PROMPTS: Prompt[] = [
-  { id: "explain", text: "اشرح لي هذا الموضوع ببساطة" },
-  { id: "rewrite", text: "أعد صياغة النص بأسلوب أكاديمي طبيعي" },
-  { id: "law", text: "حلّل مسألة قانونية وفق القانون الجزائري" },
-  { id: "summary", text: "لخّص هذا النص مع الحفاظ على الأفكار الأساسية" }
-];
 
 const ENGINE_LABELS: Record<string, string> = {
   hybrid: "OpenAI + Claude · إجابة مدمجة",
@@ -42,29 +34,10 @@ export default function Home() {
   const [researchBusy, setResearchBusy] = useState(false);
   const [researchError, setResearchError] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
-  const [prompts, setPrompts] = useState<Prompt[]>(DEFAULT_PROMPTS);
-  const [promptsLoaded, setPromptsLoaded] = useState(false);
-  const [managePrompts, setManagePrompts] = useState(false);
-  const [showQuickPrompts, setShowQuickPrompts] = useState(false);
-  const [newPrompt, setNewPrompt] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState("");
 
   useEffect(() => {
     fetch("/api/status").then(r => r.json()).then(setStatus).catch(() => setStatus(null));
-    try {
-      const saved = localStorage.getItem("ilyesb-quick-prompts");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setPrompts(parsed.filter((p: any) => p && typeof p.id === "string" && typeof p.text === "string").slice(0, 12));
-      }
-    } catch {}
-    setPromptsLoaded(true);
   }, []);
-
-  useEffect(() => {
-    if (promptsLoaded) localStorage.setItem("ilyesb-quick-prompts", JSON.stringify(prompts));
-  }, [prompts, promptsLoaded]);
 
   async function send(text = input) {
     const value = text.trim();
@@ -187,22 +160,6 @@ export default function Home() {
     rec.start();
   }
 
-  function addPrompt(e: FormEvent) {
-    e.preventDefault();
-    const text = newPrompt.trim();
-    if (!text || prompts.length >= 12) return;
-    setPrompts(old => [...old, { id: "custom-" + Date.now(), text }]);
-    setNewPrompt("");
-  }
-
-  function savePrompt(id: string) {
-    const value = editingText.trim();
-    if (!value) return;
-    setPrompts(old => old.map(p => p.id === id ? { ...p, text: value } : p));
-    setEditingId(null);
-    setEditingText("");
-  }
-
   const providerReady = (name: "openai" | "claude" | "gemini" | "groq") => status?.providers?.[name] ?? false;
   const readyCount = status ? Object.values(status.providers).filter(Boolean).length : 0;
 
@@ -314,16 +271,7 @@ export default function Home() {
           <h1>{lang === "ar" ? <>أهلاً بك في <span>ILYES.B AI</span></> : <>Welcome to <span>ILYES.B AI</span></>}</h1>
           <p className="welcome-copy">{lang === "ar" ? "اسأل، ابحث، اكتب، وتعلّم. مساعد واحد يجمع أدوات متعددة في تجربة بسيطة." : "Ask, research, write and learn. Multiple AI engines in one clear workspace."}</p>
 
-          <div className="quick-heading"><span>{lang === "ar" ? "أوامر جاهزة" : "QUICK PROMPTS"}</span><button className="quick-toggle" onClick={() => { setShowQuickPrompts(v => !v); setManagePrompts(false); }}>{showQuickPrompts ? (lang === "ar" ? "إخفاء الأوامر ▲" : "Hide prompts ▲") : (lang === "ar" ? "عرض الأوامر الجاهزة ▼" : "Show prompts ▼")}</button></div>
-          {showQuickPrompts && <><div className="quick-prompts">{prompts.map(p => <button key={p.id} onClick={() => send(p.text)}><span>✧</span>{p.text}<i>↗</i></button>)}</div><div className="prompt-manage-link"><button onClick={() => setManagePrompts(v => !v)}>{managePrompts ? (lang === "ar" ? "إغلاق الإدارة" : "Close manager") : (lang === "ar" ? "تخصيص الأوامر وتعديلها" : "Manage prompts")}</button></div></>}
-          {managePrompts && <div className="prompt-manager">
-            <form onSubmit={addPrompt} className="add-prompt-form"><input value={newPrompt} onChange={e => setNewPrompt(e.target.value)} placeholder={lang === "ar" ? "اكتب أمراً سريعاً جديداً…" : "Add a new quick prompt…"} /><button className="primary-button" disabled={!newPrompt.trim() || prompts.length >= 12}>＋</button></form>
-            {prompts.map(p => <div className="prompt-edit-row" key={p.id}>
-              {editingId === p.id ? <><input value={editingText} onChange={e => setEditingText(e.target.value)} /><button onClick={() => savePrompt(p.id)}>{lang === "ar" ? "حفظ" : "Save"}</button><button onClick={() => setEditingId(null)}>{lang === "ar" ? "إلغاء" : "Cancel"}</button></> : <><span>{p.text}</span><button onClick={() => { setEditingId(p.id); setEditingText(p.text); }}>{lang === "ar" ? "تعديل" : "Edit"}</button><button className="delete-prompt" onClick={() => setPrompts(old => old.filter(item => item.id !== p.id))}>{lang === "ar" ? "حذف" : "Delete"}</button></>}
-            </div>)}
-            <small>{lang === "ar" ? "تُحفظ الأوامر على هذا الجهاز والمتصفح، ويمكنك تعديلها أو حذفها لاحقاً." : "Prompts are saved in this browser and can be edited or deleted anytime."}</small>
-          </div>}
-        </div> : <div className="messages-list">{messages.map((m, i) => <article key={i} className={"message-card " + m.role}>
+undefined        </div> : <div className="messages-list">{messages.map((m, i) => <article key={i} className={"message-card " + m.role}>
           <div className="message-heading"><div className="message-avatar">{m.role === "user" ? "أ" : "✦"}</div><div><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b>{m.role === "assistant" && m.engine && <small>{ENGINE_LABELS[m.engine] || m.engine}</small>}</div></div>
           {m.images?.map((src, imageIndex) => <img key={imageIndex} className="message-image" src={src} alt={lang === "ar" ? "الصورة المرفقة" : "Attached image"} />)}
           {m.content && <div className="message-content">{m.content}</div>}
