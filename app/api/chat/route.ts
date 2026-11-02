@@ -41,14 +41,18 @@ function isConfigured(provider: Provider) {
   return Boolean(keys[provider]);
 }
 
-async function checkLimit(req: NextRequest) {
+async function checkLimit(req: NextRequest): Promise<"allowed" | "limited" | "unavailable"> {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return process.env.NODE_ENV !== "production";
-  const redis = new Redis({ url, token });
-  const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(12, "1 m"), prefix: "ilyesb:chat" });
-  const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "unknown";
-  return (await limiter.limit(ip)).success;
+  if (!url || !token) return "unavailable";
+  try {
+    const redis = new Redis({ url, token });
+    const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(12, "1 m"), prefix: "ilyesb:chat" });
+    const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "unknown";
+    return (await limiter.limit(ip)).success ? "allowed" : "limited";
+  } catch {
+    return "unavailable";
+  }
 }
 
 async function readJson(response: Response) {
@@ -217,13 +221,17 @@ async function askFallback(messages: Msg[], order: Provider[]) {
     }
   }
   if (!failures.length) throw new Error("لم يتم إعداد أي محرك. أضف مفتاح OpenAI أو Claude أو Gemini أو Groq في إعدادات Vercel.");
-  throw new Error("تعذر الحصول على إجابة من المحركات المتاحة. تحقق من المفاتيح وحدود الاستخدام في مزود الخدمة.");
+  throw new Error("تعذر الحصول على إجابة من المحركات المتاحة. " + failures.slice(0, 3).join(" | "));
 }
 
 export async function POST(req: NextRequest) {
   try {
-    if (!(await checkLimit(req))) {
-      return NextResponse.json({ error: "تم بلوغ حد الطلبات مؤقتاً أو أن خدمة الحماية غير مهيأة. حاول لاحقاً." }, { status: 429 });
+    const limitState = await checkLimit(req);
+    if (limitState !== "allowed") {
+      return NextResponse.json(
+        { error: limitState === "limited" ? "تم بلوغ حد الطلبات مؤقتاً. حاول بعد دقيقة." : "خدمة الحماية غير متاحة حالياً. يرجى المحاولة لاحقاً." },
+        { status: limitState === "limited" ? 429 : 503 }
+      );
     }
     const body = await req.json();
     const messages = body.messages as Msg[];
@@ -231,14 +239,19 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(messages) || messages.length === 0 || messages.length > 24) {
       return NextResponse.json({ error: "صيغة المحادثة غير صحيحة." }, { status: 400 });
     }
-    if (messages.some(m => !m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string" || (m.images !== undefined && (!Array.isArray(m.images) || m.images.length > 1 || m.images.some((img: unknown) => typeof img !== "string" || img.length > 7_000_000 || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img))))) || messages[messages.length - 1].role !== "user") {
-      return NextResponse.json({ error: "الرسائل غير صالحة." }, { status: 400 });
+    if (messages.some(m => !m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string" || (m.images !== undefined && (!Array.isArray(m.images) || m.images.length > 1 || m.images.some((img: unknown) => typeof img !== "string" || img.length > 1_900_000 || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img))))) || messages[messages.length - 1].role !== "user") {
+      return NextResponse.json({ error: "الرسائل غير صالحة أو أن الصورة تتجاوز الحجم المسموح." }, { status: 400 });
     }
     if (messages.reduce((n, m) => n + m.content.length, 0) > 60000) {
       return NextResponse.json({ error: "المحادثة طويلة جداً؛ ابدأ محادثة جديدة." }, { status: 413 });
     }
 
-    const hasImages = messages.some(m => Array.isArray(m.images) && m.images.length > 0);
+    const imageCount = messages.reduce((count, message) => count + (message.images?.length || 0), 0);
+    const imageBytes = messages.reduce((total, message) => total + (message.images || []).reduce((sum, image) => sum + image.length, 0), 0);
+    if (imageCount > 1 || imageBytes > 1_900_000) {
+      return NextResponse.json({ error: "أرسل صورة واحدة في كل طلب، بحجم مضغوط لا يتجاوز الحد المسموح." }, { status: 413 });
+    }
+    const hasImages = imageCount > 0;
     if (hasImages && requested !== "auto" && requested !== "gemini") {
       return NextResponse.json({ error: "تحليل الصور واستخراج النص منها متاح حالياً عبر محرك Gemini فقط. اختر Gemini أو الوضع التلقائي." }, { status: 400 });
     }
@@ -255,11 +268,13 @@ export async function POST(req: NextRequest) {
     }
     const provider = requested as Provider;
     if (!isConfigured(provider)) {
-      return NextResponse.json({ error: "هذا المحرك غير مهيأ بعد. أضف مفتاحه في إعدادات الخادم أو اختر الاختيار التلقائي." }, { status: 503 });
+      return NextResponse.json({ error: "هذا المحرك غير مهيأ بعد. اختر محركاً آخر أو الوضع التلقائي." }, { status: 503 });
     }
-    return NextResponse.json({ reply: await ask(provider, messages), engine: provider });
+    // إذا تعطل المحرك المختار مؤقتاً، جرّب المحركات المهيأة الأخرى بدلاً من إنهاء المحادثة.
+    return NextResponse.json(await askFallback(messages, [provider, ...PROVIDERS.filter(item => item !== provider)]));
   } catch (error) {
     const message = error instanceof Error ? error.message : "حدث خطأ غير متوقع في الخادم.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = /مفتاح|غير مهيأ|خدمة الحماية|لم يتم إعداد/i.test(message) ? 503 : 502;
+    return NextResponse.json({ error: message }, { status });
   }
 }
