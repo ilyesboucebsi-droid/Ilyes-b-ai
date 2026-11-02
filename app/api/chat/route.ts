@@ -112,7 +112,7 @@ async function askGemini(messages: Msg[]) {
     parts: [
       ...(m.content ? [{ text: m.content.slice(0, 12000) }] : []),
       ...(m.images || []).map((image) => {
-        const match = /^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(image);
+        const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(image);
         if (!match) throw new Error("صيغة الصورة غير مدعومة.");
         return { inlineData: { mimeType: match[1], data: match[2] } };
       })
@@ -231,7 +231,7 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(messages) || messages.length === 0 || messages.length > 24) {
       return NextResponse.json({ error: "صيغة المحادثة غير صحيحة." }, { status: 400 });
     }
-    if (messages.some(m => !m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string" || (m.images !== undefined && (!Array.isArray(m.images) || m.images.length > 1 || m.images.some((img: unknown) => typeof img !== "string" || img.length > 7_000_000 || !/^data:image\\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img))))) || messages[messages.length - 1].role !== "user") {
+    if (messages.some(m => !m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string" || (m.images !== undefined && (!Array.isArray(m.images) || m.images.length > 1 || m.images.some((img: unknown) => typeof img !== "string" || img.length > 7_000_000 || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img))))) || messages[messages.length - 1].role !== "user") {
       return NextResponse.json({ error: "الرسائل غير صالحة." }, { status: 400 });
     }
     if (messages.reduce((n, m) => n + m.content.length, 0) > 60000) {
