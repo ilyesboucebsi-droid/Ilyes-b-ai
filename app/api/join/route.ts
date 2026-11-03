@@ -7,6 +7,9 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const limiter = new Ratelimit({ redis: redisClient(), limiter: Ratelimit.slidingWindow(3, "1 h"), prefix: "ilyesb:join" });
     if (!(await limiter.limit(ip)).success) return NextResponse.json({ error: "تم بلوغ عدد طلبات الانضمام المسموح. حاول لاحقاً." }, { status: 429 });
+    const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const limiter = new Ratelimit({ redis: redisClient(), limiter: Ratelimit.slidingWindow(3, "1 h"), prefix: "ilyesb:join" });
+    if (!(await limiter.limit(ip)).success) return NextResponse.json({ error: "تم بلوغ عدد طلبات الانضمام المسموح. حاول لاحقاً." }, { status: 429 });
     const state = await getPlatformState();
     if (!state.joinEnabled || state.paused || state.maintenance) return NextResponse.json({ error: "الانضمام غير متاح مؤقتاً." }, { status: 403 });
     const body = await req.json();
