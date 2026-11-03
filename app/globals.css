@@ -362,3 +362,14 @@ body{background:radial-gradient(ellipse at 12% 0%,#102b43 0,transparent 32%),rad
 .message-translation-actions button:disabled{opacity:.55;cursor:wait}
 .message-translation{margin:10px 0 4px;padding:12px 14px;border:1px solid rgba(93,205,225,.25);border-radius:12px;background:rgba(15,48,66,.28)}
 .translation-label{margin-bottom:7px;color:#8ce7f2;font-size:12px;font-weight:700}
+
+
+/* User-requested typography: Simplified Arabic, 14px body and 16px headings */
+html,body,body *{
+  font-family:"Simplified Arabic",Tahoma,Arial,sans-serif!important;
+}
+body{font-size:14px!important}
+:where(p,li,label,small,strong,b,span,a,button,input,textarea,select,option,summary,blockquote){font-size:14px}
+:where(h1,h2,h3,h4,h5,h6){font-family:"Simplified Arabic",Tahoma,Arial,sans-serif!important;font-size:16px!important;font-weight:700!important;line-height:1.8}
+.message-content,.message-content .message-content-paragraph{font-size:14px!important;font-weight:400!important}
+.message-content .message-content-heading{font-size:16px!important;font-weight:700!important}
