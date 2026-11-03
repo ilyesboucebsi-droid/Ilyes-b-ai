@@ -22,15 +22,33 @@ export type JoinRequest = {
   createdAt: string;
 };
 
+function redisCredentials() {
+  // Never mix URL and token from different environment-variable pairs.
+  // Vercel projects may retain legacy KV_* values alongside the current UPSTASH_* pair.
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  if (upstashUrl || upstashToken) {
+    if (!upstashUrl || !upstashToken) throw new Error("إعدادات UPSTASH_REDIS_REST_URL وUPSTASH_REDIS_REST_TOKEN غير مكتملة.");
+    return { url: upstashUrl, token: upstashToken };
+  }
+
+  const kvUrl = process.env.KV_REST_API_URL?.trim();
+  const kvToken = process.env.KV_REST_API_TOKEN?.trim();
+  if (!kvUrl || !kvToken) throw new Error("إعدادات Upstash Redis غير مكتملة.");
+  return { url: kvUrl, token: kvToken };
+}
+
 export function redisClient() {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (!url || !token) throw new Error("إعدادات Upstash Redis غير مكتملة.");
-  return new Redis({ url, token });
+  return new Redis(redisCredentials());
 }
 
 export function adminConfigured() {
-  return Boolean(process.env.ADMIN_PASSWORD_HASH && process.env.ADMIN_SESSION_SECRET && (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL) && (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN));
+  try {
+    redisCredentials();
+    return Boolean(process.env.ADMIN_PASSWORD_HASH && process.env.ADMIN_SESSION_SECRET);
+  } catch {
+    return false;
+  }
 }
 
 export function verifyAdminPassword(password: string) {
