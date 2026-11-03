@@ -323,9 +323,9 @@ export default function Home() {
         </form>
         {attachedImage && <div className="attachment-preview"><img src={attachedImage} alt={lang === "ar" ? "معاينة الصورة" : "Image preview"} /><span>{lang === "ar" ? "صورة جاهزة للإرسال" : "Image ready to send"}</span><button type="button" onClick={() => setAttachedImage(null)} aria-label="Remove image">×</button></div>}
         {imageError && <div className="inline-error">{imageError}</div>}
-        <div className="composer-hint"><span>{lang === "ar" ? "Enter للإرسال · Shift + Enter لسطر جديد" : "Enter to send · Shift + Enter for a new line"}</span><span>{lang === "ar" ? "قد تخطئ نماذج الذكاء الاصطناعي؛ راجع المعلومات المهمة." : "AI can make mistakes. Verify important information."}</span></div>
+        <div className="composer-hint"><span>{lang === "ar" ? "Enter للإرسال · Shift + Enter لسطر جديد" : "Enter to send · Shift + Enter for a new line"}</span><span>{lang === "ar" ? "تحقّق من المعلومات المهمة." : "Verify important information."}</span></div>
       </div>
-      <footer className="site-footer"><span>© 2026 ILYES.B AI</span><i>•</i>{lang === "ar" ? "جميع الحقوق محفوظة · معرفة أوسع، وقرار أوعى." : "All rights reserved · Broader knowledge. Better judgment."}</footer>
+      <footer className="site-footer"><span>© 2026 ILYES.B AI</span><i>•</i>{lang === "ar" ? "جميع الحقوق محفوظة." : "All rights reserved."}</footer>
     </main>
   );
 }
