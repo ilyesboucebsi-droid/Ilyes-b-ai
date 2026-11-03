@@ -70,6 +70,40 @@ function providerError(data: any, fallback: string) {
   return typeof message === "string" ? message.slice(0, 500) : fallback;
 }
 
+async function enrichWithConsensus(messages: Msg[]): Promise<{ messages: Msg[]; papers: any[]; used: boolean }> {
+  const last = messages[messages.length - 1];
+  const key = process.env.CONSENSUS_API_KEY || process.env.consensus_api_key;
+  const q = last?.content?.trim() || "";
+  const relevant = q.length >= 35 && /[؟?]|ما هو|ما هي|لماذا|كيف|هل|اشرح|حلل|قارن|ناقش|دراسة|دراسات|بحث|أبحاث|علمي|أكاديمي|تأثير|فعالية|أسباب|نتائج|research|study|evidence|effect|impact|analysis|legal|law/i.test(q);
+  if (!key || !relevant || last?.images?.length) return { messages, papers: [], used: false };
+  try {
+    const u = new URL("https://api.consensus.app/v1/search");
+    u.searchParams.set("query", q.slice(0, 500));
+    u.searchParams.set("page_size", "5");
+    const r = await fetch(u.toString(), { headers: { "x-api-key": key, Accept: "application/json" }, signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return { messages, papers: [], used: false };
+    const d = await r.json();
+    const rows = Array.isArray(d) ? d : d.results || d.papers || d.items || d.data || [];
+    const papers = (Array.isArray(rows) ? rows : []).slice(0, 5).map((p: any) => ({
+      title: String(p.title || p.paper_title || p.name || ""),
+      authors: Array.isArray(p.authors) ? p.authors.map((a: any) => typeof a === "string" ? a : a.name || "").join(", ") : String(p.author_names || ""),
+      year: String(p.year || p.publication_year || ""),
+      abstract: String(p.abstract || p.summary || p.snippet || "").slice(0, 1400),
+      url: String(p.url || p.paper_url || p.link || ""),
+      doi: String(p.doi || "")
+    })).filter((p: any) => p.title);
+    if (!papers.length) return { messages, papers: [], used: true };
+    const material = papers.map((p: any, i: number) => "[" + (i + 1) + "] " + p.title + " (" + p.year + ") " + p.authors + "\n" + p.abstract + "\n" + (p.url || p.doi)).join("\n\n");
+    const enriched = messages.map((m, i) => i === messages.length - 1 ? {
+      ...m,
+      content: m.content + "\n\nنتائج بحث أكاديمي مسترجعة آلياً من Consensus. استخدمها فقط إذا كانت ذات صلة، ولا تعتبرها مصدراً رسمياً للقانون أو القضاء، ولا تخترع تفاصيل غير واردة. أشر إلى رقم الدراسة عند الاستناد إليها:\n" + material
+    } : m);
+    return { messages: enriched, papers, used: true };
+  } catch {
+    return { messages, papers: [], used: false };
+  }
+}
+
 async function askOpenAI(messages: Msg[]) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("مفتاح OpenAI غير مضبوط في إعدادات الخادم.");
@@ -238,8 +272,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ reply: await askGemini(messages), engine: "gemini" });
     }
     if (requested === "auto") {
-      const result = await askAuto(messages);
-      return NextResponse.json(result);
+      const research = await enrichWithConsensus(messages);
+      const result = await askAuto(research.messages);
+      return NextResponse.json({ ...result, consensusUsed: research.used, consensusPapers: research.papers });
     }
     if (!PROVIDERS.includes(requested as Provider)) {
       return NextResponse.json({ error: "محرك الذكاء الاصطناعي المحدد غير معروف." }, { status: 400 });
@@ -249,7 +284,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "هذا المحرك غير مهيأ بعد. اختر محركاً آخر أو الوضع التلقائي." }, { status: 503 });
     }
     // إذا تعطل المحرك المختار مؤقتاً، جرّب المحركات المهيأة الأخرى بدلاً من إنهاء المحادثة.
-    return NextResponse.json(await askFallback(messages, [provider, ...PROVIDERS.filter(item => item !== provider)]));
+    const research = await enrichWithConsensus(messages);
+    const result = await askFallback(research.messages, [provider, ...PROVIDERS.filter(item => item !== provider)]);
+    return NextResponse.json({ ...result, consensusUsed: research.used, consensusPapers: research.papers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "حدث خطأ غير متوقع في الخادم.";
     const status = /مفتاح|غير مهيأ|خدمة الحماية|لم يتم إعداد/i.test(message) ? 503 : 502;
