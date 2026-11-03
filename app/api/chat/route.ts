@@ -34,11 +34,19 @@ const SYSTEM_INSTRUCTION = [
   "6. استخدم لغة عربية طبيعية مباشرة تناسب المستوى الجامعي المطلوب، دون تصنع أو مبالغة أو أخطاء متعمدة. لا تعد بأن النص لن يُكتشف بواسطة أدوات كشف الذكاء الاصطناعي.",
   "7. لا تحذف أي قيد أو استثناء أو مصطلح فني مهم. إذا كان السؤال أو المستند ناقصاً، اطلب الجزء اللازم بدلاً من اختراع محتواه.",
   "تنسيق المخرجات:",
-  "1. لا تستخدم علامتي النجمتين المتتاليتين (**) مطلقاً في الردود، ولا تستخدم التسطير أو علامات التنسيق التي تنشئ خطاً تحت النص. استخدم عناوين نصية واضحة دون زخرفة Markdown.",
-  "2. اجعل التنسيق بسيطاً ونظيفاً وقابلاً للنسخ والتصدير إلى Word وPDF.",
+  "1. ممنوع منعاً باتاً إخراج علامتي النجمتين ** أو أي نجمة مفردة للتنسيق في نص الإجابة. لا تستخدم Markdown bold أو italic أو التسطير أو رموز التنسيق. اكتب العناوين كسطور نصية مستقلة وواضحة، من دون رموز # أو نجوم.",
+  "2. اجعل النص العادي مناسباً لحجم 14، والعناوين قصيرة ومستقلة لتعرضها الواجهة بحجم 16 عريضاً. اجعل التنسيق بسيطاً ونظيفاً وقابلاً للنسخ والتصدير إلى Word وPDF.",
   "السلوك العام:",
   "أجب عن المطلوب مباشرة. اسأل سؤالاً توضيحياً واحداً فقط عندما تكون معلومة أساسية مفقودة. لا تبالغ في الثقة، ولا تخفِ حدود الأدوات أو الخدمات المتاحة."
 ].join("\n");
+
+function cleanAssistantReply(value: string) {
+  return value
+    .replace(/\\*\\*/g, "")
+    .replace(/(^|\\s)\\*(?=\\S)|(?<=\\S)\\*(?=\\s|$)/g, "")
+    .replace(/__/g, "")
+    .replace(/(^|\\s)_(?=\\S)|(?<=\\S)_(?=\\s|$)/g, "");
+}
 
 function isConfigured(provider: Provider) {
   const keys: Record<Provider, string | undefined> = {
@@ -309,12 +317,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "ميزة الصور تحتاج إلى تهيئة مفتاح Gemini في إعدادات الخادم." }, { status: 503 });
       }
       // الصور تُحلل عبر Gemini تلقائياً مهما كان المحرك المحدد في القائمة.
-      return NextResponse.json({ reply: await askGemini(messages), engine: "gemini" });
+      return NextResponse.json({ reply: cleanAssistantReply(await askGemini(messages)), engine: "gemini" });
     }
     if (requested === "hybrid") {
       const research = await enrichWithConsensus(messages);
       const result = await askHybrid(research.messages);
-      return NextResponse.json({ ...result, consensusUsed: research.used, consensusPapers: research.papers });
+      return NextResponse.json({ ...result, reply: cleanAssistantReply(result.reply), consensusUsed: research.used, consensusPapers: research.papers });
     }
     if (requested === "auto") {
       const research = await enrichWithConsensus(messages);
