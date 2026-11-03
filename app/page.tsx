@@ -32,6 +32,7 @@ export default function Home() {
   const [researchQuery, setResearchQuery] = useState("");
   const [searchSources, setSearchSources] = useState<SearchSource[]>(["consensus", "semantic_scholar", "openalex"]);
   const [searchStatuses, setSearchStatuses] = useState<SearchStatus[]>([]);
+  // Keep each research state declaration on its own source line for valid TSX parsing.
   const [papers, setPapers] = useState<Paper[]>([]);
   const [researchAnalysis, setResearchAnalysis] = useState("");
   const [researchAnalysisError, setResearchAnalysisError] = useState("");
