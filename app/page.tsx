@@ -167,18 +167,33 @@ export default function Home() {
       setError(lang === "ar" ? "اسمح بفتح النوافذ المنبثقة لتصدير PDF." : "Allow pop-ups to export PDF.");
       return;
     }
-    const safe = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    printWindow.document.write(`<!doctype html><html lang="${lang}" dir="${lang === "ar" ? "rtl" : "ltr"}"><head><meta charset="utf-8"><title>ILYES.B AI</title><style>body{font-family:Arial,Tahoma,sans-serif;margin:28mm 20mm;color:#172033;line-height:1.9}h1{font-size:18pt;border-bottom:1px solid #bbb;padding-bottom:10px}main{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12pt}@media print{body{margin:18mm 16mm}}</style></head><body><h1>ILYES.B AI</h1><main>${safe}</main><script>window.onload=()=>{window.print()}</script></body></html>`);
+    const clean = content.replace(/\\*\\*/g, "").replace(/__/g, "").replace(/(^|\\s)_(?=\\S)|(?<=\\S)_(?=\\s|$)/g, "");
+    const esc = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const body = clean.split(/\\r?\\n/).map(line => {
+      const heading = /^\\s{0,3}#{1,6}\\s+(.+)$/.exec(line);
+      return heading ? `<h2>${esc(heading[1])}</h2>` : line ? `<p>${esc(line)}</p>` : "<p>&nbsp;</p>";
+    }).join("");
+    printWindow.document.write(`<!doctype html><html lang="${lang}" dir="${lang === "ar" ? "rtl" : "ltr"}"><head><meta charset="utf-8"><title>ILYES.B AI</title><style>@page{size:A4;margin:20mm}body{font-family:"Simplified Arabic Fixed","Simplified Arabic",serif;margin:0;color:#172033;line-height:1.9;font-size:14pt}h1,h2{font-family:"Simplified Arabic Fixed","Simplified Arabic",serif;font-size:16pt;font-weight:700;margin:1em 0 .45em}h1{margin-top:0}main{overflow-wrap:anywhere}p{font-size:14pt;font-weight:400;margin:0 0 .55em;white-space:pre-wrap}</style></head><body><h1>ILYES.B AI</h1><main>${body}</main><script>window.onload=()=>{window.print()}</script></body></html>`);
     printWindow.document.close();
   }
 
   function exportAnswerWord(content: string) {
     const esc = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const paragraphs = content.split(/\\r?\\n/).map(line => line ? `<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:rtl/></w:rPr><w:t xml:space="preserve">${esc(line)}</w:t></w:r></w:p>` : "<w:p/>").join("");
+    const clean = content.replace(/\\*\\*/g, "").replace(/__/g, "").replace(/(^|\\s)_(?=\\S)|(?<=\\S)_(?=\\s|$)/g, "");
+    const paragraphs = clean.split(/\\r?\\n/).map(line => {
+      const heading = /^\\s{0,3}#{1,6}\\s+(.+)$/.exec(line);
+      const text = heading ? heading[1] : line;
+      if (!text) return "<w:p/>";
+      const size = heading ? 32 : 28;
+      const bold = heading ? "<w:b/><w:bCs/>" : "";
+      return `<w:p><w:pPr><w:bidi/><w:jc w:val="start"/><w:spacing w:after="120"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Simplified Arabic Fixed" w:hAnsi="Simplified Arabic Fixed" w:eastAsia="Simplified Arabic Fixed" w:cs="Simplified Arabic Fixed"/><w:rtl/>${bold}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r></w:p>`;
+    }).join("");
     const files: [string, string][] = [
-      ["[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'],
+      ["[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>'],
       ["_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
-      ["word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:bidi/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="30"/></w:rPr><w:t>ILYES.B AI</w:t></w:r></w:p>${paragraphs}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`]
+      ["word/_rels/document.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+      ["word/styles.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Simplified Arabic Fixed" w:hAnsi="Simplified Arabic Fixed" w:eastAsia="Simplified Arabic Fixed" w:cs="Simplified Arabic Fixed"/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>'],
+      ["word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:bidi/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Simplified Arabic Fixed" w:hAnsi="Simplified Arabic Fixed" w:eastAsia="Simplified Arabic Fixed" w:cs="Simplified Arabic Fixed"/><w:b/><w:bCs/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t>ILYES.B AI</w:t></w:r></w:p>${paragraphs}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`]
     ];
     const encoder = new TextEncoder();
     const crc32 = (bytes: Uint8Array) => {
@@ -200,8 +215,7 @@ export default function Home() {
     }
     const directory = central.reduce((all, part) => { const merged = new Uint8Array(all.length + part.length); merged.set(all); merged.set(part, all.length); return merged; }, new Uint8Array());
     const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(directory.length), ...u32(offset), ...u16(0)]);
-    const zipParts = [...chunks, directory, end];
-    const blob = new Blob(zipParts as BlobPart[], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    const blob = new Blob([...chunks, directory, end] as BlobPart[], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a"); link.href = url; link.download = "ilyes-b-ai-answer.docx"; link.click();
     URL.revokeObjectURL(url);
