@@ -239,3 +239,22 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe
  .research-engine-copy b{font-size:13px}
  .research-engine-copy small{font-size:11px}
 }
+
+
+/* Compact header: language and guide grouped on the left */
+.topbar{min-height:112px;padding:12px 2px 12px 78px;position:relative}
+.left-tools{position:absolute;left:2px;top:10px;z-index:4;display:flex;flex-direction:column;align-items:stretch;gap:7px}
+.left-tools .language-toggle,.left-tools .about-toggle{position:static;min-width:54px;min-height:34px;padding:7px 9px;justify-content:center;white-space:nowrap;font-size:11px}
+.engine-picker{min-height:68px;padding:12px 14px;align-items:center}
+.engine-picker select{min-height:42px;min-width:150px}
+.status-row{padding-top:7px;padding-bottom:2px;font-size:10px}
+.status-note{font-size:10px}
+.brand small{font-size:9px}
+@media(max-width:760px){
+ .topbar{min-height:132px;padding:9px 10px 9px 62px;gap:8px}
+ .left-tools{left:0;top:9px;gap:7px}
+ .left-tools .language-toggle,.left-tools .about-toggle{min-width:49px;min-height:32px;padding:6px 7px;font-size:10px}
+ .engine-picker{min-height:64px;padding:10px 12px}
+ .engine-picker select{min-height:42px;min-width:0}
+ .brand small{font-size:9px}
+}
