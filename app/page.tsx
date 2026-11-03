@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
-type Engine = "auto" | "openai" | "claude" | "gemini" | "groq";
+type Engine = "auto" | "hybrid" | "openai" | "claude" | "gemini" | "groq";
 type ChatPaper = { title: string; authors: string; year: string; abstract: string; url: string; doi: string };
 type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[]; consensusUsed?: boolean; consensusPapers?: ChatPaper[] };
 type SearchSource = "consensus" | "semantic_scholar" | "openalex";
@@ -11,7 +11,7 @@ type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty
 type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq", boolean>; consensus: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
 
 const ENGINE_LABELS: Record<string, string> = {
-  hybrid: "OpenAI + Claude · إجابة مدمجة",
+  hybrid: "GPT + تعاون المحركات · إجابة مدمجة",
   openai: "OpenAI",
   claude: "Claude",
   gemini: "Gemini",
@@ -192,7 +192,8 @@ export default function Home() {
           <label className="engine-picker">
             <span>✧</span>
             <select aria-label="AI engine" value={provider} onChange={e => setProvider(e.target.value as Engine)}>
-              <option value="auto">{lang === "ar" ? "تلقائي" : "Auto"}</option>
+              <option value="auto">{lang === "ar" ? "تلقائي · سريع" : "Auto · Fast"}</option>
+              <option value="hybrid" disabled={!providerReady("openai")}>{lang === "ar" ? "تعاون المحركات بقيادة GPT" : "GPT-led engine collaboration"}{providerReady("openai") ? " ✓" : " · يتطلب OpenAI"}</option>
               <option value="openai" disabled={!providerReady("openai")}>OpenAI{providerReady("openai") ? " ✓" : " · غير مهيأ"}</option>
               <option value="claude" disabled={!providerReady("claude")}>Claude{providerReady("claude") ? " ✓" : " · غير مهيأ"}</option>
               <option value="gemini" disabled={!providerReady("gemini")}>Gemini{providerReady("gemini") ? " ✓" : " · غير مهيأ"}</option>
