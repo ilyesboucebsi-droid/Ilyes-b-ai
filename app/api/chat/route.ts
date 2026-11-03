@@ -223,40 +223,45 @@ async function ask(provider: Provider, messages: Msg[]) {
 }
 
 async function askHybrid(messages: Msg[]) {
-  if (!isConfigured("openai")) {
-    throw new Error("وضع تعاون المحركات يحتاج إلى ضبط OPENAI_API_KEY ليقوم GPT بدمج الإجابات.");
-  }
-  // استدعاء المحركات الأخرى المهيأة بالتوازي، ثم تسليم مخرجاتها إلى GPT لصياغة إجابة موحدة.
   const peers = (["claude", "gemini", "groq"] as Provider[]).filter(isConfigured);
   const results = await Promise.allSettled(peers.map(async (provider) => ({
     provider,
     reply: await ask(provider, messages)
   })));
-  const contributions = results.flatMap((result, index) => result.status === "fulfilled"
-    ? [result.value]
-    : []);
+  const contributions = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
   const failures = results.flatMap((result, index) => result.status === "rejected"
     ? [peers[index] + ": " + (result.reason instanceof Error ? result.reason.message : "تعذر الاتصال")]
     : []);
-  if (!contributions.length && peers.length) {
-    // لا نخفي فشل بقية المحركات: يجيب GPT منفرداً مع توضيح المحركات التي تعذر تشغيلها.
-    const reply = await askOpenAI(messages);
-    return { reply, engine: "openai", collaboration: { used: false, contributors: [], failures } };
-  }
-  const synthesisMessages: Msg[] = [
-    ...messages,
-    {
-      role: "user",
-      content: "مهمتك الآن دمج مساهمات نماذج الذكاء الاصطناعي التالية في إجابة واحدة دقيقة ومتماسكة. اعتبرها آراء مساعدة لا حقائق مؤكدة؛ تحقق من الاتساق والمنطق، واحذف التكرار، واذكر مواضع عدم اليقين أو الاختلاف عند أهميتها. لا تنسب معلومة إلى مصدر لم يرد في السياق، ولا تخترع مراجع. حافظ على لغة المستخدم ومستوى التفصيل المناسب.\n\n" +
-        contributions.map((item, index) => "مساهمة " + (index + 1) + " من " + item.provider + ":\n" + item.reply).join("\n\n") +
-        (failures.length ? "\n\nمحركات تعذر تشغيلها: " + failures.join(" | ") : "")
+
+  if (contributions.length && isConfigured("openai")) {
+    try {
+      const synthesisMessages: Msg[] = [
+        ...messages,
+        { role: "user", content: "ادمج مساهمات النماذج التالية في إجابة واحدة دقيقة ومتماسكة. تحقق من الاتساق والمنطق، واحذف التكرار، واذكر الاختلاف أو عدم اليقين عند الحاجة. لا تخترع مصادر، وحافظ على لغة المستخدم.\n\n" +
+          contributions.map((item, index) => "مساهمة " + (index + 1) + " من " + item.provider + ":\n" + item.reply).join("\n\n") }
+      ];
+      const reply = await askOpenAI(synthesisMessages);
+      return { reply, engine: "hybrid", collaboration: { used: true, contributors: contributions.map(item => item.provider), failures } };
+    } catch (error) {
+      failures.push("openai synthesis: " + (error instanceof Error ? error.message : "تعذر دمج الإجابات"));
     }
-  ];
-  const reply = await askOpenAI(synthesisMessages);
+  } else if (!isConfigured("openai")) {
+    failures.push("openai: مفتاح OpenAI غير مهيأ");
+  }
+
+  if (contributions.length) {
+    const chosen = contributions[0];
+    return {
+      reply: chosen.reply + "\n\nملاحظة: تعذر إتمام الدمج النهائي بواسطة GPT، لذلك عُرض رد " + chosen.provider + " مباشرةً كخطة احتياطية.",
+      engine: chosen.provider,
+      collaboration: { used: false, contributors: contributions.map(item => item.provider), failures }
+    };
+  }
+
+  const fallback = await askFallback(messages, ["groq", "gemini", "claude", "openai"]);
   return {
-    reply,
-    engine: "hybrid",
-    collaboration: { used: contributions.length > 0, contributors: contributions.map(item => item.provider), failures }
+    ...fallback,
+    collaboration: { used: false, contributors: [], failures: [...failures, "لم تنجح أي مساهمة مستقلة؛ استُخدم محرك احتياطي واحد."] }
   };
 }
 
