@@ -330,3 +330,23 @@ body{background:radial-gradient(ellipse at 12% 0%,#102b43 0,transparent 32%),rad
  .tool-button{font-size:11px}
 }
 @media(max-width:420px){.tool-button{padding:7px 8px}.tool-button span{display:inline}.admin-link,.join-link{font-size:10px}.search-side-button{padding:0 10px}}
+
+
+/* Consensus sources attached to ordinary chat answers */
+.chat-sources{margin:18px 0 12px;padding:14px;border:1px solid #28536a;border-radius:15px;background:linear-gradient(145deg,#102b40,#101d32);direction:inherit}
+.chat-sources-heading{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.chat-sources-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:#153b50;color:#79e3f3;font-size:22px}
+.chat-sources-heading>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.chat-sources-heading b{color:#b8f0fa;font-size:14px}
+.chat-sources-heading small,.chat-source-details small{color:#91abc2;font-size:11px}
+.chat-source-count{display:grid;place-items:center;min-width:27px;height:27px;padding:0 7px;border-radius:20px;background:#1a4056;color:#8ce7f2;font-size:12px;font-weight:800}
+.chat-source-list{display:grid;gap:9px}
+.chat-source-card{display:flex;gap:10px;padding:11px;border:1px solid #29445e;border-radius:11px;background:#0b1a2b}
+.chat-source-number{display:grid;place-items:center;flex:0 0 25px;height:25px;border-radius:8px;background:#17364c;color:#80dff0;font-size:11px;font-weight:800}
+.chat-source-details{display:flex;min-width:0;flex-direction:column;gap:6px}
+.chat-source-details>b{color:#e1f3ff;font-size:13px;line-height:1.65}
+.chat-source-details p{margin:0;color:#a9bdcf;font-size:12px;line-height:1.7}
+.chat-source-details a{align-self:flex-start;color:#71ddeb;font-size:12px;text-decoration:none}
+.chat-source-details a:hover{text-decoration:underline}
+.chat-sources-empty,.chat-sources-note{display:block;margin:8px 0 0;color:#a1b5c9;font-size:11px;line-height:1.7}
+.chat-sources-note{color:#829bb2}
