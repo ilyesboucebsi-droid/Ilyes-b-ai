@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 type Engine = "auto" | "hybrid" | "openai" | "claude" | "gemini" | "groq";
 type ChatPaper = { title: string; authors: string; year: string; abstract: string; url: string; doi: string };
-type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[]; consensusUsed?: boolean; consensusPapers?: ChatPaper[] };
+type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[]; consensusUsed?: boolean; consensusPapers?: ChatPaper[]; collaboration?: { used: boolean; contributors: string[]; failures?: string[] } };
 type SearchSource = "consensus" | "semantic_scholar" | "openalex";
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null; sources: SearchSource[] };
 type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty" | "error"; count: number; error: string | null };
@@ -65,7 +65,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "تعذر إكمال الطلب");
-      setMessages([...next, { role: "assistant", content: data.reply, engine: data.engine || "auto", consensusUsed: Boolean(data.consensusUsed), consensusPapers: Array.isArray(data.consensusPapers) ? data.consensusPapers : [] }]);
+      setMessages([...next, { role: "assistant", content: data.reply, engine: data.engine || "auto", consensusUsed: Boolean(data.consensusUsed), consensusPapers: Array.isArray(data.consensusPapers) ? data.consensusPapers : [], collaboration: data.collaboration }]);
     } catch (e) {
       setMessages(messages);
       setInput(value);
@@ -309,7 +309,7 @@ export default function Home() {
           <p className="welcome-copy">{lang === "ar" ? "اسأل واكتب وابحث، في مساحة واحدة." : "Ask, write and research in one place."}</p>
 
 </div> : <div className="messages-list">{messages.map((m, i) => <article key={i} className={"message-card " + m.role}>
-          <div className="message-heading"><div className="message-avatar">{m.role === "user" ? "أ" : "✦"}</div><div><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b>{m.role === "assistant" && m.engine && <small>{ENGINE_LABELS[m.engine] || m.engine}</small>}</div></div>
+          <div className="message-heading"><div className="message-avatar">{m.role === "user" ? "أ" : "✦"}</div><div><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b>{m.role === "assistant" && m.engine && <small>{ENGINE_LABELS[m.engine] || m.engine}</small>}{m.role === "assistant" && m.collaboration?.used && <small>{lang === "ar" ? "ساهمت في الإجابة: " : "Contributed: "}{m.collaboration.contributors.join(" + ")}</small>}</div></div>
           {m.images?.map((src, imageIndex) => <img key={imageIndex} className="message-image" src={src} alt={lang === "ar" ? "الصورة المرفقة" : "Attached image"} />)}
           {m.content && <div className="message-content">{m.content}</div>}
           {m.role === "assistant" && m.consensusUsed && <section className="chat-sources" aria-label={lang === "ar" ? "مصادر Consensus" : "Consensus sources"}>
