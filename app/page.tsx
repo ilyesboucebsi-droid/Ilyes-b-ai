@@ -40,10 +40,47 @@ export default function Home() {
   const [researchBusy, setResearchBusy] = useState(false);
   const [researchError, setResearchError] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
+  const [historyReady, setHistoryReady] = useState(false);
+  const [historyNotice, setHistoryNotice] = useState("");
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem("ilyes-b-ai-chat-v1");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setMessages(parsed.filter((item: any) => item && (item.role === "user" || item.role === "assistant") && typeof item.content === "string").slice(-80));
+      }
+    } catch {
+      setHistoryNotice(lang === "ar" ? "تعذر استعادة المحادثة المحفوظة على هذا الجهاز." : "Could not restore the chat saved on this device.");
+    } finally {
+      setHistoryReady(true);
+    }
     fetch("/api/status").then(r => r.json()).then(setStatus).catch(() => setStatus(null));
   }, []);
+
+  useEffect(() => {
+    if (!historyReady) return;
+    try {
+      localStorage.setItem("ilyes-b-ai-chat-v1", JSON.stringify(messages.slice(-80)));
+    } catch {
+      setHistoryNotice(lang === "ar" ? "مساحة التخزين المحلية ممتلئة؛ نزّل نسخة من المحادثة قبل المتابعة." : "Local storage is full; export this conversation before continuing.");
+    }
+  }, [messages, historyReady, lang]);
+
+  function exportConversation() {
+    if (!messages.length) return;
+    const transcript = messages.map(message => {
+      const speaker = message.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI";
+      return speaker + "\\n" + message.content + (message.collaboration?.contributors?.length ? "\\n" + (lang === "ar" ? "المحركات المساهمة: " : "Contributors: ") + message.collaboration.contributors.join(", ") : "");
+    }).join("\\n\\n------------------------------\\n\\n");
+    const blob = new Blob([transcript], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "ilyes-b-ai-conversation-" + new Date().toISOString().slice(0, 10) + ".txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function send(text = input) {
     const value = text.trim();
@@ -203,7 +240,8 @@ export default function Home() {
           <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
           <a className="tool-button join-link" href="/join">✦ <span>{lang === "ar" ? "انضم" : "Join"}</span></a>
           <a className="tool-button admin-link" href="/admin">⌘ <span>{lang === "ar" ? "الإدارة" : "Admin"}</span></a>
-          {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
+          {messages.length > 0 && <button className="tool-button" onClick={exportConversation}>⇩ <span>{lang === "ar" ? "تصدير المحادثة" : "Export chat"}</span></button>}
+          {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); setHistoryNotice(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
         </div>
       </header>
 
@@ -331,6 +369,7 @@ export default function Home() {
         </article>)}{busy && <div className="thinking"><span /><span /><span />{lang === "ar" ? "جارٍ إعداد الإجابة…" : "Preparing your answer…"}</div>}</div>}
       </section>
 
+      {historyNotice && <div className="history-notice" role="status">{historyNotice}</div>}
       {error && <div className="error-banner"><span>!</span>{error}<button onClick={() => setError("")}>×</button></div>}
       <div className="composer-wrap">
         <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
