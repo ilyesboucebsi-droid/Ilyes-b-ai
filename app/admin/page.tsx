@@ -96,6 +96,6 @@ export default function AdminPage() {
       {error && <div className="admin-error">{error}</div>}
       {notice && <div className="admin-notice">{notice}</div>}
     </>}
-    <footer>ILYES.B AI · لوحة المالك الخاصة</footer>
+    <footer>ILYES AI · لوحة المالك الخاصة</footer>
   </main>;
 }
