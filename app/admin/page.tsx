@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import "./admin.css";
 
 type State = { paused: boolean; maintenance: boolean; joinEnabled: boolean; updatedAt: string | null };
@@ -28,7 +28,7 @@ export default function AdminPage() {
 
   useEffect(() => { load().catch(e => setError(e.message)); }, [load]);
 
-  async function login(e: React.FormEvent) {
+  async function login(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError("");
     try {
       const response = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
@@ -39,7 +39,7 @@ export default function AdminPage() {
     finally { setBusy(false); }
   }
 
-  async function executeAction(e: React.FormEvent) {
+  async function executeAction(e: FormEvent) {
     e.preventDefault(); if (!action) return;
     setBusy(true); setError(""); setNotice("");
     try {
