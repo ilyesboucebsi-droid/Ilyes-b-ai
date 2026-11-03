@@ -200,6 +200,10 @@ async function askFallback(messages: Msg[], order: Provider[]) {
 
 export async function POST(req: NextRequest) {
   try {
+    try {
+      const platform = await getPlatformState();
+      if (platform.paused || platform.maintenance) return NextResponse.json({ error: platform.maintenance ? "المنصة في وضع الصيانة مؤقتاً. حاول لاحقاً." : "تم إيقاف المنصة مؤقتاً." }, { status: 503 });
+    } catch { /* Preserve existing service if platform-state storage is temporarily unreachable. */ }
     const limitState = await checkLimit(req);
     if (limitState !== "allowed") {
       return NextResponse.json(
