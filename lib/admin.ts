@@ -1,18 +1,28 @@
-import { createHmac, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHmac, scryptSync, timingSafeEqual, randomUUID } from "node:crypto";
 import { Redis } from "@upstash/redis";
 import { NextRequest, NextResponse } from "next/server";
 
 const COOKIE_NAME = "ilyesb_admin_session";
 const STATE_KEY = "ilyesb:platform:state";
+const JOIN_KEY = "ilyesb:platform:join-requests";
 const SESSION_SECONDS = 60 * 60 * 8;
 
 export type PlatformState = {
   paused: boolean;
   maintenance: boolean;
+  joinEnabled: boolean;
   updatedAt: string | null;
 };
 
-function redisClient() {
+export type JoinRequest = {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  createdAt: string;
+};
+
+export function redisClient() {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   if (!url || !token) throw new Error("إعدادات Upstash Redis غير مكتملة.");
@@ -69,15 +79,27 @@ export function clearAdminCookie(response: NextResponse) {
 }
 
 export async function getPlatformState(): Promise<PlatformState> {
-  const redis = redisClient();
-  const value = await redis.get<PlatformState>(STATE_KEY);
+  const value = await redisClient().get<PlatformState>(STATE_KEY);
   return value && typeof value === "object"
-    ? { paused: Boolean(value.paused), maintenance: Boolean(value.maintenance), updatedAt: value.updatedAt || null }
-    : { paused: false, maintenance: false, updatedAt: null };
+    ? { paused: Boolean(value.paused), maintenance: Boolean(value.maintenance), joinEnabled: value.joinEnabled !== false, updatedAt: value.updatedAt || null }
+    : { paused: false, maintenance: false, joinEnabled: true, updatedAt: null };
 }
 
 export async function savePlatformState(state: PlatformState) {
   await redisClient().set(STATE_KEY, state);
+}
+
+export async function saveJoinRequest(input: Omit<JoinRequest, "id" | "createdAt">) {
+  const request: JoinRequest = { ...input, id: randomUUID(), createdAt: new Date().toISOString() };
+  const redis = redisClient();
+  await redis.lpush(JOIN_KEY, JSON.stringify(request));
+  await redis.ltrim(JOIN_KEY, 0, 499);
+  return request;
+}
+
+export async function getJoinRequests(): Promise<JoinRequest[]> {
+  const rows = await redisClient().lrange<string>(JOIN_KEY, 0, 99);
+  return rows.map(row => typeof row === "string" ? JSON.parse(row) as JoinRequest : row as unknown as JoinRequest);
 }
 
 export async function auditAdminAction(action: string) {
@@ -85,6 +107,11 @@ export async function auditAdminAction(action: string) {
   const entry = JSON.stringify({ action, at: new Date().toISOString() });
   await redis.lpush("ilyesb:admin:audit", entry);
   await redis.ltrim("ilyesb:admin:audit", 0, 99);
+}
+
+export async function getAdminAudit() {
+  const rows = await redisClient().lrange<string>("ilyesb:admin:audit", 0, 19);
+  return rows.map(row => typeof row === "string" ? JSON.parse(row) : row);
 }
 
 export { COOKIE_NAME };
