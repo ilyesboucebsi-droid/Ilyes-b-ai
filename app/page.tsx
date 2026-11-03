@@ -199,7 +199,9 @@ export default function Home() {
             </select>
           </label>
           <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
-          <a className="tool-button join-link" href="/join">✦ <span>{lang === "ar" ? "انضم" : "Join"}</span></a>\n          <a className="tool-button admin-link" href="/admin">⌘ <span>{lang === "ar" ? "الإدارة" : "Admin"}</span></a>\n          {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
+          <a className="tool-button join-link" href="/join">✦ <span>{lang === "ar" ? "انضم" : "Join"}</span></a>
+          <a className="tool-button admin-link" href="/admin">⌘ <span>{lang === "ar" ? "الإدارة" : "Admin"}</span></a>
+          {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
         </div>
       </header>
 
