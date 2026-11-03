@@ -3,7 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 type Engine = "auto" | "openai" | "claude" | "gemini" | "groq";
-type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[] };
+type ChatPaper = { title: string; authors: string; year: string; abstract: string; url: string; doi: string };
+type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[]; consensusUsed?: boolean; consensusPapers?: ChatPaper[] };
 type SearchSource = "consensus" | "semantic_scholar" | "openalex";
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null; sources: SearchSource[] };
 type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty" | "error"; count: number; error: string | null };
@@ -64,7 +65,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "تعذر إكمال الطلب");
-      setMessages([...next, { role: "assistant", content: data.reply, engine: data.engine || "auto" }]);
+      setMessages([...next, { role: "assistant", content: data.reply, engine: data.engine || "auto", consensusUsed: Boolean(data.consensusUsed), consensusPapers: Array.isArray(data.consensusPapers) ? data.consensusPapers : [] }]);
     } catch (e) {
       setMessages(messages);
       setInput(value);
@@ -310,6 +311,21 @@ export default function Home() {
           <div className="message-heading"><div className="message-avatar">{m.role === "user" ? "أ" : "✦"}</div><div><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b>{m.role === "assistant" && m.engine && <small>{ENGINE_LABELS[m.engine] || m.engine}</small>}</div></div>
           {m.images?.map((src, imageIndex) => <img key={imageIndex} className="message-image" src={src} alt={lang === "ar" ? "الصورة المرفقة" : "Attached image"} />)}
           {m.content && <div className="message-content">{m.content}</div>}
+          {m.role === "assistant" && m.consensusUsed && <section className="chat-sources" aria-label={lang === "ar" ? "مصادر Consensus" : "Consensus sources"}>
+            <div className="chat-sources-heading"><span className="chat-sources-icon">⌕</span><div><b>{lang === "ar" ? "مصادر البحث من Consensus" : "Consensus research sources"}</b><small>{lang === "ar" ? "تم استدعاء Consensus لهذه الإجابة" : "Consensus was queried for this answer"}</small></div><span className="chat-source-count">{m.consensusPapers?.length || 0}</span></div>
+            {m.consensusPapers?.length ? <div className="chat-source-list">{m.consensusPapers.map((paper, paperIndex) => {
+              const href = paper.url || (paper.doi ? (paper.doi.startsWith("http") ? paper.doi : "https://doi.org/" + paper.doi) : "");
+              return <article className="chat-source-card" key={paperIndex}>
+                <span className="chat-source-number">{paperIndex + 1}</span>
+                <div className="chat-source-details"><b>{paper.title}</b>
+                  <small>{[paper.authors, paper.year].filter(Boolean).join(" · ")}</small>
+                  {paper.abstract && <p>{paper.abstract}</p>}
+                  {href ? <a href={href} target="_blank" rel="noreferrer">{lang === "ar" ? "فتح الدراسة الأصلية ↗" : "Open original study ↗"}</a> : paper.doi && <small>DOI: {paper.doi}</small>}
+                </div>
+              </article>;
+            })}</div> : <p className="chat-sources-empty">{lang === "ar" ? "تم الاتصال بـ Consensus، لكن لم تُرجع الخدمة دراسات قابلة للعرض لهذا السؤال." : "Consensus was queried but returned no displayable papers for this question."}</p>}
+            <small className="chat-sources-note">{lang === "ar" ? "هذه مراجع بحثية مسترجعة آلياً؛ تحقّق من بيانات الدراسة ونصها الأصلي قبل الاستشهاد بها." : "Automatically retrieved research references. Verify each paper and its original text before citing."}</small>
+          </section>}
           {m.role === "assistant" && <button type="button" className="copy-button" onClick={() => copyAnswer(m.content, i)}>{copiedIndex === i ? "✓ " + (lang === "ar" ? "تم النسخ" : "Copied") : "▢ " + (lang === "ar" ? "نسخ الإجابة" : "Copy answer")}</button>}
         </article>)}{busy && <div className="thinking"><span /><span /><span />{lang === "ar" ? "جارٍ إعداد الإجابة…" : "Preparing your answer…"}</div>}</div>}
       </section>
