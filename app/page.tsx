@@ -10,6 +10,28 @@ type Paper = { title: string; authors: string; year: string; journal: string; ab
 type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty" | "error"; count: number; error: string | null };
 type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq", boolean>; consensus: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
 
+function cleanAssistantText(value: string) {
+  return value
+    .replace(/\\*\\*/g, "")
+    .replace(/(^|\\s)\\*(?=\\S)|(?<=\\S)\\*(?=\\s|$)/g, "")
+    .replace(/__/g, "")
+    .replace(/(^|\\s)_(?=\\S)|(?<=\\S)_(?=\\s|$)/g, "");
+}
+
+function renderMessageContent(value: string) {
+  return cleanAssistantText(value).split(/\\r?\\n/).map((raw, index) => {
+    const line = raw.trim();
+    if (!line) return <div className="message-paragraph-spacer" key={index} />;
+    const markdownHeading = /^#{1,6}\\s+(.+)$/.exec(line);
+    const plainHeading = /^(المقدمة|الخاتمة|تمهيد|أولاً|ثانياً|ثالثاً|رابعاً|القضية الأولى|القضية الثانية|المبحث الأول|المبحث الثاني|المطلب الأول|المطلب الثاني|النتيجة)(?:\\s*[:：].*)?$/.test(line);
+    if (markdownHeading || plainHeading) {
+      return <h3 className="message-content-heading" key={index}>{markdownHeading ? markdownHeading[1] : line}</h3>;
+    }
+    const bullet = /^[-•]\\s+(.+)$/.exec(line) || /^\\*\\s+(.+)$/.exec(raw);
+    return <p className="message-content-paragraph" key={index}>{bullet ? "• " + bullet[1] : line}</p>;
+  });
+}
+
 const ENGINE_LABELS: Record<string, string> = {
   hybrid: "GPT + تعاون المحركات · إجابة مدمجة",
   openai: "OpenAI",
@@ -409,7 +431,7 @@ export default function Home() {
 </div> : <div className="messages-list">{messages.map((m, i) => <article key={i} className={"message-card " + m.role}>
           <div className="message-heading"><div className="message-avatar">{m.role === "user" ? "أ" : "✦"}</div><div><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b>{m.role === "assistant" && m.engine && <small>{ENGINE_LABELS[m.engine] || m.engine}</small>}{m.role === "assistant" && m.collaboration?.used && <small>{lang === "ar" ? "ساهمت في الإجابة: " : "Contributed: "}{m.collaboration.contributors.join(" + ")}</small>}</div></div>
           {m.images?.map((src, imageIndex) => <img key={imageIndex} className="message-image" src={src} alt={lang === "ar" ? "الصورة المرفقة" : "Attached image"} />)}
-          {m.content && <div className="message-content">{m.content}</div>}
+          {m.content && <div className="message-content">{renderMessageContent(m.content)}</div>}
           {m.role === "assistant" && m.consensusUsed && <section className="chat-sources" aria-label={lang === "ar" ? "مصادر Consensus" : "Consensus sources"}>
             <div className="chat-sources-heading"><span className="chat-sources-icon">⌕</span><div><b>{lang === "ar" ? "مصادر البحث من Consensus" : "Consensus research sources"}</b><small>{lang === "ar" ? "تم استدعاء Consensus لهذه الإجابة" : "Consensus was queried for this answer"}</small></div><span className="chat-source-count">{m.consensusPapers?.length || 0}</span></div>
             {m.consensusPapers?.length ? <div className="chat-source-list">{m.consensusPapers.map((paper, paperIndex) => {
