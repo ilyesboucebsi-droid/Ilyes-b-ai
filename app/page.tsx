@@ -178,16 +178,19 @@ export default function Home() {
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <header className="topbar glass">
-        <button className="tool-button language-toggle" onClick={() => setLang(lang === "ar" ? "en" : "ar")} aria-label={lang === "ar" ? "Switch language to English" : "تغيير اللغة إلى العربية"}>{lang === "ar" ? "EN" : "عربي"}</button>
+        <div className="left-tools">
+          <button className="tool-button language-toggle" onClick={() => setLang(lang === "ar" ? "en" : "ar")} aria-label={lang === "ar" ? "Switch language to English" : "تغيير اللغة إلى العربية"}>{lang === "ar" ? "EN" : "عربي"}</button>
+          <button className="tool-button about-toggle" onClick={() => setAboutOpen(true)}>{lang === "ar" ? "ⓘ نبذة" : "ⓘ About"}</button>
+        </div>
         <div className="brand">
           <div className="brand-mark"><span>IB</span><i>✦</i></div>
-          <div><strong>ILYES.B <em>AI</em></strong><small>{lang === "ar" ? "مساحة ذكية للمعرفة والإبداع" : "A smarter space for knowledge and creativity"}</small></div>
+          <div><strong>ILYES.B <em>AI</em></strong><small>{lang === "ar" ? "معرفة. بحث. إبداع." : "Knowledge. Research. Creativity."}</small></div>
         </div>
         <div className="toolbar">
           <label className="engine-picker">
             <span>✧</span>
             <select aria-label="AI engine" value={provider} onChange={e => setProvider(e.target.value as Engine)}>
-              <option value="auto">{lang === "ar" ? "تلقائي · دمج عند توافر المحركين" : "Auto · Hybrid when available"}</option>
+              <option value="auto">{lang === "ar" ? "تلقائي" : "Auto"}</option>
               <option value="openai" disabled={!providerReady("openai")}>OpenAI{providerReady("openai") ? " ✓" : " · غير مهيأ"}</option>
               <option value="claude" disabled={!providerReady("claude")}>Claude{providerReady("claude") ? " ✓" : " · غير مهيأ"}</option>
               <option value="gemini" disabled={!providerReady("gemini")}>Gemini{providerReady("gemini") ? " ✓" : " · غير مهيأ"}</option>
@@ -195,7 +198,6 @@ export default function Home() {
             </select>
           </label>
           <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
-          <button className="tool-button about-toggle" onClick={() => setAboutOpen(true)}>{lang === "ar" ? "ⓘ نبذة عن المنصة" : "ⓘ About"}</button>
           {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
         </div>
       </header>
@@ -250,8 +252,8 @@ export default function Home() {
       </div>}
 
       <section className="status-row" aria-live="polite">
-        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + " من 4 محركات مهيأة" : readyCount + " of 4 engines configured") : (lang === "ar" ? "جارٍ فحص الخدمات…" : "Checking services…")}</span>
-        <span className="status-note">{status ? (status.consensus ? (lang === "ar" ? "البحث الأكاديمي مهيأ" : "Academic search configured") : (lang === "ar" ? "البحث الأكاديمي غير مهيأ" : "Academic search not configured")) : (lang === "ar" ? "قد يستغرق الفحص لحظات" : "This may take a moment")}</span>
+        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + "/4 جاهزة" : readyCount + " of 4 engines configured") : (lang === "ar" ? "جارٍ الفحص…" : "Checking services…")}</span>
+        <span className="status-note">{status ? (status.consensus ? (lang === "ar" ? "البحث جاهز" : "Academic search configured") : (lang === "ar" ? "البحث غير مهيأ" : "Academic search not configured")) : (lang === "ar" ? "جارٍ التحقق" : "This may take a moment")}</span>
       </section>
 
       {researchOpen && <section className="research-panel glass">
@@ -299,9 +301,9 @@ export default function Home() {
         {messages.length === 0 ? <div className="welcome">
           <span className="eyebrow">{lang === "ar" ? "ذكاء متعدد المحركات" : "MULTI-ENGINE INTELLIGENCE"}</span>
           <h1>{lang === "ar" ? <>أهلاً بك في <span>ILYES.B AI</span></> : <>Welcome to <span>ILYES.B AI</span></>}</h1>
-          <p className="welcome-copy">{lang === "ar" ? "اسأل، ابحث، اكتب، وتعلّم. مساعد واحد يجمع أدوات متعددة في تجربة بسيطة." : "Ask, research, write and learn. Multiple AI engines in one clear workspace."}</p>
+          <p className="welcome-copy">{lang === "ar" ? "اسأل واكتب وابحث، في مساحة واحدة." : "Ask, write and research in one place."}</p>
 
-undefined        </div> : <div className="messages-list">{messages.map((m, i) => <article key={i} className={"message-card " + m.role}>
+</div> : <div className="messages-list">{messages.map((m, i) => <article key={i} className={"message-card " + m.role}>
           <div className="message-heading"><div className="message-avatar">{m.role === "user" ? "أ" : "✦"}</div><div><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b>{m.role === "assistant" && m.engine && <small>{ENGINE_LABELS[m.engine] || m.engine}</small>}</div></div>
           {m.images?.map((src, imageIndex) => <img key={imageIndex} className="message-image" src={src} alt={lang === "ar" ? "الصورة المرفقة" : "Attached image"} />)}
           {m.content && <div className="message-content">{m.content}</div>}
