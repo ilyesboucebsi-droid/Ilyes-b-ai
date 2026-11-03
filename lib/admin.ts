@@ -52,7 +52,10 @@ export function adminConfigured() {
 }
 
 export function verifyAdminPassword(password: string) {
-  const encoded = process.env.ADMIN_PASSWORD_HASH || "";
+  // Accept the raw hash, and harmless copy/paste wrappers sometimes included
+  // when copying the generated "NAME=value" line from the terminal.
+  let encoded = (process.env.ADMIN_PASSWORD_HASH || "").trim();
+  encoded = encoded.replace(/^ADMIN_PASSWORD_HASH\s*=\s*/i, "").replace(/^["']|["']$/g, "").trim();
   const match = /^\$scrypt\$([a-f0-9]{32})\$([a-f0-9]{128})$/i.exec(encoded);
   if (!match || typeof password !== "string" || password.length > 256) return false;
   const actual = scryptSync(password, Buffer.from(match[1], "hex"), 64);
