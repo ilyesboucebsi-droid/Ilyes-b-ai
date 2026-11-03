@@ -211,9 +211,46 @@ async function ask(provider: Provider, messages: Msg[]) {
   return askGroq(messages);
 }
 
+async function askHybrid(messages: Msg[]) {
+  if (!isConfigured("openai")) {
+    throw new Error("وضع تعاون المحركات يحتاج إلى ضبط OPENAI_API_KEY ليقوم GPT بدمج الإجابات.");
+  }
+  // استدعاء المحركات الأخرى المهيأة بالتوازي، ثم تسليم مخرجاتها إلى GPT لصياغة إجابة موحدة.
+  const peers = (["claude", "gemini", "groq"] as Provider[]).filter(isConfigured);
+  const results = await Promise.allSettled(peers.map(async (provider) => ({
+    provider,
+    reply: await ask(provider, messages)
+  })));
+  const contributions = results.flatMap((result, index) => result.status === "fulfilled"
+    ? [result.value]
+    : []);
+  const failures = results.flatMap((result, index) => result.status === "rejected"
+    ? [peers[index] + ": " + (result.reason instanceof Error ? result.reason.message : "تعذر الاتصال")]
+    : []);
+  if (!contributions.length && peers.length) {
+    // لا نخفي فشل بقية المحركات: يجيب GPT منفرداً مع توضيح المحركات التي تعذر تشغيلها.
+    const reply = await askOpenAI(messages);
+    return { reply, engine: "openai", collaboration: { used: false, contributors: [], failures } };
+  }
+  const synthesisMessages: Msg[] = [
+    ...messages,
+    {
+      role: "user",
+      content: "مهمتك الآن دمج مساهمات نماذج الذكاء الاصطناعي التالية في إجابة واحدة دقيقة ومتماسكة. اعتبرها آراء مساعدة لا حقائق مؤكدة؛ تحقق من الاتساق والمنطق، واحذف التكرار، واذكر مواضع عدم اليقين أو الاختلاف عند أهميتها. لا تنسب معلومة إلى مصدر لم يرد في السياق، ولا تخترع مراجع. حافظ على لغة المستخدم ومستوى التفصيل المناسب.\n\n" +
+        contributions.map((item, index) => "مساهمة " + (index + 1) + " من " + item.provider + ":\n" + item.reply).join("\n\n") +
+        (failures.length ? "\n\nمحركات تعذر تشغيلها: " + failures.join(" | ") : "")
+    }
+  ];
+  const reply = await askOpenAI(synthesisMessages);
+  return {
+    reply,
+    engine: "hybrid",
+    collaboration: { used: contributions.length > 0, contributors: contributions.map(item => item.provider), failures }
+  };
+}
+
 async function askAuto(messages: Msg[]) {
-  // السرعة أولوية في الوضع التلقائي: استدعاء محرك أساسي واحد فقط.
-  // لا نشغّل محركين ثم استدعاء ثالثاً للدمج في كل رسالة؛ يمكن اختيار Claude يدوياً عند الحاجة.
+  // الوضع التلقائي يبقى سريعاً ويستخدم محركاً واحداً؛ تعاون المحركات متاح بالاختيار الصريح.
   const order: Provider[] = ["openai", "groq", "gemini", "claude"];
   return askFallback(messages, order);
 }
@@ -270,6 +307,11 @@ export async function POST(req: NextRequest) {
       }
       // الصور تُحلل عبر Gemini تلقائياً مهما كان المحرك المحدد في القائمة.
       return NextResponse.json({ reply: await askGemini(messages), engine: "gemini" });
+    }
+    if (requested === "hybrid") {
+      const research = await enrichWithConsensus(messages);
+      const result = await askHybrid(research.messages);
+      return NextResponse.json({ ...result, consensusUsed: research.used, consensusPapers: research.papers });
     }
     if (requested === "auto") {
       const research = await enrichWithConsensus(messages);
