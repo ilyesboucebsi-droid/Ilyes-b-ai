@@ -64,6 +64,9 @@ export default function Home() {
   const [status, setStatus] = useState<Status | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [historyNotice, setHistoryNotice] = useState("");
+  const [translationBusy, setTranslationBusy] = useState<number | null>(null);
+  const [translations, setTranslations] = useState<Record<number, string>>({});
+  const [translationErrors, setTranslationErrors] = useState<Record<number, string>>({});
 
   useEffect(() => {
     try {
@@ -132,6 +135,26 @@ export default function Home() {
       setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function translateMessage(index: number, content: string) {
+    if (translationBusy !== null) return;
+    setTranslationBusy(index);
+    setTranslationErrors(current => ({ ...current, [index]: "" }));
+    try {
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: content, target: "Arabic" })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "تعذرت الترجمة");
+      setTranslations(current => ({ ...current, [index]: data.translation }));
+    } catch (e) {
+      setTranslationErrors(current => ({ ...current, [index]: e instanceof Error ? e.message : "تعذرت الترجمة" }));
+    } finally {
+      setTranslationBusy(null);
     }
   }
 
@@ -432,6 +455,9 @@ export default function Home() {
           <div className="message-heading"><div className="message-avatar">{m.role === "user" ? "أ" : "✦"}</div><div><b>{m.role === "user" ? (lang === "ar" ? "أنت" : "You") : "ILYES.B AI"}</b>{m.role === "assistant" && m.engine && <small>{ENGINE_LABELS[m.engine] || m.engine}</small>}{m.role === "assistant" && m.collaboration?.used && <small>{lang === "ar" ? "ساهمت في الإجابة: " : "Contributed: "}{m.collaboration.contributors.join(" + ")}</small>}</div></div>
           {m.images?.map((src, imageIndex) => <img key={imageIndex} className="message-image" src={src} alt={lang === "ar" ? "الصورة المرفقة" : "Attached image"} />)}
           {m.content && <div className="message-content">{renderMessageContent(m.content)}</div>}
+          {m.content && !/[\u0600-\u06FF]/.test(m.content) && <div className="message-translation-actions"><button type="button" onClick={() => translateMessage(i, m.content)} disabled={translationBusy !== null}>{translationBusy === i ? "جارٍ الترجمة…" : translations[i] ? "إعادة الترجمة" : "ترجمة إلى العربية"}</button></div>}
+          {translations[i] && <div className="message-translation"><div className="translation-label">الترجمة العربية</div><div className="message-content">{renderMessageContent(translations[i])}</div></div>}
+          {translationErrors[i] && <div className="inline-error">{translationErrors[i]}</div>}
           {m.role === "assistant" && m.consensusUsed && <section className="chat-sources" aria-label={lang === "ar" ? "مصادر Consensus" : "Consensus sources"}>
             <div className="chat-sources-heading"><span className="chat-sources-icon">⌕</span><div><b>{lang === "ar" ? "مصادر البحث من Consensus" : "Consensus research sources"}</b><small>{lang === "ar" ? "تم استدعاء Consensus لهذه الإجابة" : "Consensus was queried for this answer"}</small></div><span className="chat-source-count">{m.consensusPapers?.length || 0}</span></div>
             {m.consensusPapers?.length ? <div className="chat-source-list">{m.consensusPapers.map((paper, paperIndex) => {
