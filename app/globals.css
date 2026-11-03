@@ -350,3 +350,9 @@ body{background:radial-gradient(ellipse at 12% 0%,#102b43 0,transparent 32%),rad
 .chat-source-details a:hover{text-decoration:underline}
 .chat-sources-empty,.chat-sources-note{display:block;margin:8px 0 0;color:#a1b5c9;font-size:11px;line-height:1.7}
 .chat-sources-note{color:#829bb2}
+
+/* Enforce requested academic typography inside the conversation */
+.message-content{font-family:"Simplified Arabic",Tahoma,Arial,sans-serif!important;font-size:14px!important;line-height:1.9;font-weight:400}
+.message-content .message-content-paragraph{font-family:"Simplified Arabic",Tahoma,Arial,sans-serif!important;font-size:14px!important;font-weight:400!important;line-height:1.9;margin:0 0 9px;white-space:pre-wrap}
+.message-content .message-content-heading{font-family:"Simplified Arabic",Tahoma,Arial,sans-serif!important;font-size:16px!important;font-weight:700!important;line-height:1.8;margin:16px 0 8px;color:inherit}
+.message-content .message-paragraph-spacer{height:5px}
