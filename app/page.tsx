@@ -61,7 +61,7 @@ export default function Home() {
   useEffect(() => {
     if (!historyReady) return;
     try {
-      localStorage.setItem("ilyes-b-ai-chat-v1", JSON.stringify(messages.slice(-80)));
+      localStorage.setItem("ilyes-b-ai-chat-v1", JSON.stringify(messages.slice(-50).map(message => ({ ...message, images: undefined }))));
     } catch {
       setHistoryNotice(lang === "ar" ? "مساحة التخزين المحلية ممتلئة؛ نزّل نسخة من المحادثة قبل المتابعة." : "Local storage is full; export this conversation before continuing.");
     }
