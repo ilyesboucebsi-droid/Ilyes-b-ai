@@ -70,12 +70,12 @@ export function hasAdminSession(req: NextRequest) {
 export function setAdminCookie(response: NextResponse, token: string) {
   response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true, secure: process.env.NODE_ENV === "production",
-    sameSite: "strict", path: "/admin", maxAge: SESSION_SECONDS
+    sameSite: "strict", path: "/", maxAge: SESSION_SECONDS
   });
 }
 
 export function clearAdminCookie(response: NextResponse) {
-  response.cookies.set(COOKIE_NAME, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/admin", maxAge: 0 });
+  response.cookies.set(COOKIE_NAME, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/", maxAge: 0 });
 }
 
 export async function getPlatformState(): Promise<PlatformState> {
