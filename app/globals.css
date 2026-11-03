@@ -373,3 +373,35 @@ body{font-size:14px!important}
 :where(h1,h2,h3,h4,h5,h6){font-family:"Simplified Arabic",Tahoma,Arial,sans-serif!important;font-size:16px!important;font-weight:700!important;line-height:1.8}
 .message-content,.message-content .message-content-paragraph{font-size:14px!important;font-weight:400!important}
 .message-content .message-content-heading{font-size:16px!important;font-weight:700!important}
+
+
+/* ILYES.B AI typography standard: Simplified Arabic, 14px body and 16px headings */
+html,body,body *{
+  font-family:"Simplified Arabic",sans-serif!important;
+}
+body,body *{
+  font-size:14px;
+}
+h1,h2,h3,h4,h5,h6,
+.panel-heading h2,.welcome h1,.research-analysis h3,
+.about-modal-header h2,.about-section h3{
+  font-family:"Simplified Arabic",sans-serif!important;
+  font-size:16px!important;
+  font-weight:700!important;
+  line-height:1.8;
+}
+button,input,textarea,select{
+  font-family:"Simplified Arabic",sans-serif!important;
+  font-size:14px!important;
+}
+.message-content,
+.message-content .message-content-paragraph{
+  font-family:"Simplified Arabic",sans-serif!important;
+  font-size:14px!important;
+  font-weight:400!important;
+}
+.message-content .message-content-heading{
+  font-family:"Simplified Arabic",sans-serif!important;
+  font-size:16px!important;
+  font-weight:700!important;
+}
