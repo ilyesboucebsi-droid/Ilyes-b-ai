@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ILYES.B AI",
+  title: "ILYES AI",
   description: "مساعدك الذكي بالعربية والإنجليزية",
-  applicationName: "ILYES.B AI"
+  applicationName: "ILYES AI"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
