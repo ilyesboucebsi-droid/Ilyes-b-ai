@@ -1,4 +1,4 @@
-# ILYES.B AI
+# ILYES AI
 
 A bilingual Arabic/English AI assistant built with Next.js 15 and deployed on Vercel.
 
