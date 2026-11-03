@@ -327,7 +327,7 @@ export default function Home() {
           <button className="tool-button about-toggle" onClick={() => setAboutOpen(true)}>{lang === "ar" ? "ⓘ نبذة" : "ⓘ About"}</button>
         </div>
         <div className="brand">
-          <div className="brand-mark"><span>IB</span><i>✦</i></div>
+          <div className="brand-mark"><span>IA</span><i>✦</i></div>
           <div><strong>ILYES.B <em>AI</em></strong><small>{lang === "ar" ? "معرفة. بحث. إبداع." : "Knowledge. Research. Creativity."}</small></div>
         </div>
         <div className="toolbar">
