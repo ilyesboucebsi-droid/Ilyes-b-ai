@@ -6,8 +6,9 @@ import { getPlatformState } from "@/lib/admin";
 export const runtime = "nodejs";
 
 type Msg = { role: "user" | "assistant"; content: string; images?: string[] };
-type Provider = "gemini" | "groq";
-const PROVIDERS: Provider[] = ["gemini", "groq"];
+type Provider = "gemini" | "groq" | "openai" | "deepseek";
+const FREE_PROVIDERS: Provider[] = ["gemini", "groq"];
+const PROVIDERS: Provider[] = ["gemini", "groq", "openai", "deepseek"];
 
 const SYSTEM_INSTRUCTION = [
   "أنت ILYES AI، مساعد عربي/إنجليزي متعدد المجالات. أجب بلغة المستخدم، بدقة ووضوح، وبنبرة طبيعية محترمة. لا تدّعِ أنك إنسان أو تملك تجارب شخصية.",
@@ -93,7 +94,10 @@ function cleanAssistantReply(value: string) {
 }
 
 function isConfigured(provider: Provider) {
-  return provider === "gemini" ? Boolean(process.env.GEMINI_API_KEY) : Boolean(process.env.GROQ_API_KEY);
+  if (provider === "gemini") return Boolean(process.env.GEMINI_API_KEY);
+  if (provider === "groq") return Boolean(process.env.GROQ_API_KEY);
+  if (provider === "openai") return Boolean(process.env.OPENAI_API_KEY);
+  return Boolean(process.env.DEEPSEEK_API_KEY);
 }
 
 async function checkLimit(req: NextRequest): Promise<"allowed" | "limited" | "unavailable"> {
@@ -211,13 +215,55 @@ async function askGroq(messages: Msg[]) {
   return answer.trim();
 }
 
+async function askOpenAI(messages: Msg[]) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("محرك GPT غير مهيأ. أضف OPENAI_API_KEY اختيارياً في إعدادات Vercel.");
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+    body: JSON.stringify({ model: process.env.OPENAI_MODEL || "gpt-4.1-mini", messages: [{ role: "system", content: SYSTEM_INSTRUCTION }, ...messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) }))], max_completion_tokens: 6000 }),
+    signal: AbortSignal.timeout(60000)
+  });
+  const data = await readJson(response);
+  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك GPT."));
+  const answer = data.choices?.[0]?.message?.content || "";
+  if (!answer.trim()) throw new Error("لم يصل رد نصي من GPT.");
+  return answer.trim();
+}
+
+async function askDeepSeek(messages: Msg[]) {
+  const key = process.env.DEEPSEEK_API_KEY;
+  if (!key) throw new Error("محرك DeepSeek غير مهيأ. أضف DEEPSEEK_API_KEY اختيارياً في إعدادات Vercel.");
+  const response = await fetch("https://api.deepseek.com/chat/completions", {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+    body: JSON.stringify({ model: process.env.DEEPSEEK_MODEL || "deepseek-chat", messages: [{ role: "system", content: SYSTEM_INSTRUCTION }, ...messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) }))], max_tokens: 6000, temperature: 0.7 }),
+    signal: AbortSignal.timeout(60000)
+  });
+  const data = await readJson(response);
+  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك DeepSeek."));
+  const answer = data.choices?.[0]?.message?.content || "";
+  if (!answer.trim()) throw new Error("لم يصل رد نصي من DeepSeek.");
+  return answer.trim();
+}
+
 async function ask(provider: Provider, messages: Msg[]) {
-  return provider === "gemini" ? askGemini(messages) : askGroq(messages);
+  if (provider === "gemini") return askGemini(messages);
+  if (provider === "groq") return askGroq(messages);
+  if (provider === "openai") return askOpenAI(messages);
+  return askDeepSeek(messages);
+}
+
+async function askGPTLeader(messages: Msg[], includeDeepSeek: boolean) {
+  const draft = await askOpenAI(messages);
+  if (!includeDeepSeek) return { reply: draft, engine: "gpt" };
+  if (!isConfigured("deepseek")) throw new Error("للتعاون مع DeepSeek، أضف DEEPSEEK_API_KEY في إعدادات Vercel. لم يتم استدعاء أي خدمة مدفوعة.");
+  const review = await askDeepSeek([...messages, { role: "user", content: "قدّم مراجعة نقدية مستقلة لمسودة GPT التالية: حدّد الأخطاء أو النواقص أو الادعاءات غير المسندة، واقترح تصحيحات محددة دون اختلاق مصادر. أعد نقاط المراجعة فقط.\n\nمسودة GPT:\n" + draft }]);
+  const final = await askOpenAI([...messages, { role: "user", content: "أنت المحرك القائد. راجع مسودتك التالية وملاحظات DeepSeek، وخذ الصحيح منها فقط، ثم أخرج إجابة نهائية واحدة متماسكة. لا تتبع أي اقتراح غير موثق ولا تخترع مصادر.\n\nمسودتك:\n" + draft + "\n\nمراجعة DeepSeek:\n" + review }]);
+  return { reply: final, engine: "gpt", collaboration: { used: true, contributors: ["GPT", "DeepSeek"] } };
 }
 
 async function askHybrid(messages: Msg[]) {
   // الوضع المجاني: Gemini وGroq فقط، دون أي استدعاء لخدمة مدفوعة.
-  const available = (["gemini", "groq"] as Provider[]).filter(isConfigured);
+  const available = FREE_PROVIDERS.filter(isConfigured);
   if (!available.length) {
     throw new Error("لم يتم إعداد أي محرك مجاني بعد. أضف مفتاح Gemini المجاني أو Groq المجاني إلى إعدادات Vercel.");
   }
@@ -272,7 +318,7 @@ async function askHybrid(messages: Msg[]) {
 
 async function askAuto(messages: Msg[]) {
   // الوضع التلقائي يبقى سريعاً ويستخدم محركاً واحداً؛ تعاون المحركات متاح بالاختيار الصريح.
-  const order: Provider[] = ["gemini", "groq"];
+  const order: Provider[] = FREE_PROVIDERS;
   return askFallback(messages, order);
 }
 
@@ -286,7 +332,7 @@ async function askFallback(messages: Msg[], order: Provider[]) {
       failures.push(provider + ": " + (error instanceof Error ? error.message : "تعذر الاتصال"));
     }
   }
-  if (!failures.length) throw new Error("لم يتم إعداد أي محرك مجاني. أضف مفتاح Gemini أو Groq في إعدادات Vercel.");
+  if (!failures.length) throw new Error("لم يتم إعداد أي محرك متاح. أضف مفتاح المحرك المطلوب في إعدادات Vercel.");
   throw new Error("تعذر الحصول على إجابة من المحركات المتاحة. " + failures.slice(0, 3).join(" | "));
 }
 
@@ -328,6 +374,12 @@ export async function POST(req: NextRequest) {
       }
       // الصور تُحلل عبر Gemini تلقائياً مهما كان المحرك المحدد في القائمة.
       return NextResponse.json({ reply: cleanAssistantReply(await askGemini(messages)), engine: "gemini" });
+    }
+    if (requested === "gpt" || requested === "gpt_deepseek") {
+      if (!isConfigured("openai")) return NextResponse.json({ error: "محرك GPT اختياري ويتطلب OPENAI_API_KEY مع تفعيل الفوترة لدى OpenAI. لم يتم استدعاء أي خدمة مدفوعة." }, { status: 503 });
+      const research = await enrichWithConsensus(messages);
+      const result = await askGPTLeader(research.messages, requested === "gpt_deepseek");
+      return NextResponse.json({ ...result, reply: cleanAssistantReply(result.reply), consensusUsed: research.used, consensusPapers: research.papers });
     }
     if (requested === "hybrid") {
       const research = await enrichWithConsensus(messages);
