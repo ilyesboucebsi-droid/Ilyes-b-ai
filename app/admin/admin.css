@@ -40,3 +40,17 @@
 .analytics-error{padding:10px;border:1px solid #783b4a;border-radius:9px;background:#321b28;color:#ffb0bc;font-size:11px}
 @media(max-width:760px){.analytics-cards{grid-template-columns:1fr 1fr}.analytics-columns{grid-template-columns:1fr}.analytics-daily>div{grid-template-columns:repeat(4,minmax(0,1fr))}.admin-section-title{align-items:flex-start;flex-direction:column}}
 @media(max-width:420px){.analytics-cards{gap:7px}.analytics-cards article{padding:12px}.analytics-cards b{font-size:20px}.analytics-daily>div{grid-template-columns:repeat(3,minmax(0,1fr))}.analytics-refresh{width:100%}}
+
+.background-controls{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px;margin:16px 0}
+.background-upload{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;min-height:112px;padding:16px;border:1px dashed #3b7890;border-radius:14px;background:linear-gradient(140deg,#102d40,#10243a);cursor:pointer;overflow:hidden}
+.background-upload>span{font-size:22px;color:var(--adm-cyan)}
+.background-upload b{font-size:13px;color:#e8f7ff}
+.background-upload small{font-size:10px;color:var(--adm-muted)}
+.background-upload input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.background-mode-button{align-self:stretch;padding:12px;border:1px solid #28728b;border-radius:12px;background:#12384c;color:#a8edfa;font-size:12px;font-weight:800;cursor:pointer}
+.background-mode-button.secondary{border-color:#34465d;background:#172438;color:#c1d0df}
+.background-mode-button:disabled{opacity:.4;cursor:not-allowed}
+.background-preview{position:relative;width:min(440px,100%);height:170px;margin-top:14px;border:1px solid #2c5870;border-radius:13px;overflow:hidden;background:#071525}
+.background-preview img{width:100%;height:100%;object-fit:cover;object-position:center 25%}
+.background-preview span{position:absolute;right:10px;bottom:10px;padding:6px 9px;border-radius:8px;background:#061321d9;color:#dff7ff;font-size:10px}
+@media(max-width:760px){.background-controls{grid-template-columns:1fr}.background-upload{min-height:100px}.background-mode-button{min-height:46px}}
