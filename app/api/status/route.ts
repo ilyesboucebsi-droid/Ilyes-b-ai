@@ -9,7 +9,9 @@ export async function GET() {
   return NextResponse.json({
     providers: {
       gemini: Boolean(process.env.GEMINI_API_KEY),
-      groq: Boolean(process.env.GROQ_API_KEY)
+      groq: Boolean(process.env.GROQ_API_KEY),
+      openai: Boolean(process.env.OPENAI_API_KEY),
+      deepseek: Boolean(process.env.DEEPSEEK_API_KEY)
     },
     academicSearch: true,
     rateLimitConfigured: Boolean((process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL) && (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)),
