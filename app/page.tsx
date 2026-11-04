@@ -2,13 +2,13 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
-type Engine = "auto" | "hybrid" | "openai" | "claude" | "gemini" | "groq" | "deepseek";
+type Engine = "auto" | "hybrid" | "gemini" | "groq";
 type ChatPaper = { title: string; authors: string; year: string; abstract: string; url: string; doi: string };
 type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[]; consensusUsed?: boolean; consensusPapers?: ChatPaper[]; collaboration?: { used: boolean; contributors: string[]; failures?: string[] } };
-type SearchSource = "consensus" | "semantic_scholar" | "openalex";
+type SearchSource = "semantic_scholar" | "openalex";
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null; sources: SearchSource[] };
 type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty" | "error"; count: number; error: string | null };
-type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq" | "deepseek", boolean>; consensus: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
+type Status = { providers: Record<"gemini" | "groq", boolean>; academicSearch: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
 
 function cleanAssistantText(value: string) {
   return value
@@ -33,9 +33,7 @@ function renderMessageContent(value: string) {
 }
 
 const ENGINE_LABELS: Record<string, string> = {
-  hybrid: "GPT + تعاون المحركات · إجابة مدمجة",
-  openai: "OpenAI",
-  claude: "Claude",
+  hybrid: "Gemini + Groq · تعاون مجاني",
   gemini: "Gemini",
   groq: "Groq"
 };
@@ -53,7 +51,7 @@ export default function Home() {
   const [researchOpen, setResearchOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [researchQuery, setResearchQuery] = useState("");
-  const [searchSources, setSearchSources] = useState<SearchSource[]>(["consensus", "semantic_scholar", "openalex"]);
+  const [searchSources, setSearchSources] = useState<SearchSource[]>(["semantic_scholar", "openalex"]);
   const [searchStatuses, setSearchStatuses] = useState<SearchStatus[]>([]);
   // Keep each research state declaration on its own source line for valid TSX parsing.
   const [papers, setPapers] = useState<Paper[]>([]);
@@ -314,7 +312,7 @@ export default function Home() {
     rec.start();
   }
 
-  const providerReady = (name: "openai" | "claude" | "gemini" | "groq" | "deepseek") => status?.providers?.[name] ?? false;
+  const providerReady = (name: "gemini" | "groq") => status?.providers?.[name] ?? false;
   const readyCount = status ? Object.values(status.providers).filter(Boolean).length : 0;
 
   return (
@@ -335,11 +333,9 @@ export default function Home() {
             <span>✧</span>
             <select aria-label="AI engine" value={provider} onChange={e => setProvider(e.target.value as Engine)}>
               <option value="auto">{lang === "ar" ? "تلقائي · سريع" : "Auto · Fast"}</option>
-              <option value="hybrid" disabled={!providerReady("openai")}>{lang === "ar" ? "تعاون المحركات بقيادة GPT" : "GPT-led engine collaboration"}{providerReady("openai") ? " ✓" : " · يتطلب OpenAI"}</option>
-              <option value="openai" disabled={!providerReady("openai")}>OpenAI{providerReady("openai") ? " ✓" : " · غير مهيأ"}</option>
-              <option value="claude" disabled={!providerReady("claude")}>Claude{providerReady("claude") ? " ✓" : " · غير مهيأ"}</option>
+              <option value="hybrid" disabled={!providerReady("gemini") && !providerReady("groq")}>{lang === "ar" ? "تعاون مجاني بين المحركات" : "Free engine collaboration"}{providerReady("gemini") && providerReady("groq") ? " ✓" : ""}</option>
               <option value="gemini" disabled={!providerReady("gemini")}>Gemini{providerReady("gemini") ? " ✓" : " · غير مهيأ"}</option>
-              <option value="groq" disabled={!providerReady("groq")}>Groq{providerReady("groq") ? " ✓" : " · غير مهيأ"}</option>\n              <option value="deepseek" disabled={!providerReady("deepseek")}>DeepSeek{providerReady("deepseek") ? " ✓" : " · غير مهيأ"}</option>
+              <option value="groq" disabled={!providerReady("groq")}>Groq{providerReady("groq") ? " ✓" : " · غير مهيأ"}</option>\n              
             </select>
           </label>
           <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
@@ -373,9 +369,9 @@ export default function Home() {
             </div>
             <div className="about-section">
               <h3>ثانياً: البحث الأكاديمي ودمج المحركات</h3>
-              <p>تتيح المنصة ثلاثة مصادر للبحث العلمي: <b>Consensus</b> للعثور على الدراسات والأدلة، و<b>Semantic Scholar</b> للبحث في الأوراق والمؤلفين والاستشهادات، و<b>OpenAlex</b> لفهرسة المنشورات والباحثين والمجلات. هذه خدمات بحث مستقلة وليست محركات محادثة.</p><p><b>كيف تستخدمها؟</b> افتح «بحث أكاديمي»، وحدد محركاً واحداً أو أكثر من مربعات الاختيار، أو اضغط «تحديد الكل» لدمج المحركات الثلاثة. اكتب سؤالاً محدداً ثم اضغط زر «دمج المحركات والبحث». تعمل المصادر المختارة بالتوازي، وتجمع المنصة النتائج وتحاول إزالة الدراسات المكررة، وتعرض شارة تبين مصدر كل دراسة وحالة كل محرك.</p>
+              <p>تتيح المنصة ثلاثة مصادر للبحث العلمي: <b>Consensus</b> للعثور على الدراسات والأدلة، و<b>Semantic Scholar</b> للبحث في الأوراق والمؤلفين والاستشهادات، و<b>OpenAlex</b> لفهرسة المنشورات والباحثين والمجلات. هذه خدمات بحث مستقلة وليست محركات محادثة.</p><p><b>كيف تستخدمها؟</b> افتح «بحث أكاديمي»، وحدد محركاً واحداً أو أكثر من مربعات الاختيار، أو اضغط «تحديد الكل» لدمج المحركان المجانيان. اكتب سؤالاً محدداً ثم اضغط زر «دمج المحركات والبحث». تعمل المصادر المختارة بالتوازي، وتجمع المنصة النتائج وتحاول إزالة الدراسات المكررة، وتعرض شارة تبين مصدر كل دراسة وحالة كل محرك.</p>
               <div className="about-flow"><span>1 · تكتب سؤالاً وتحدد المحركات</span><i>←</i><span>2 · بحث متزامن</span><i>←</i><span>3 · دمج وإزالة التكرار</span><i>←</i><span>4 · تحليل OpenAI</span></div>
-              <p>بعد جمع النتائج، ترسل المنصة البيانات والملخصات المتاحة إلى OpenAI لتحليلها ومقارنة أوجه الاتفاق والاختلاف وحدود الأدلة. لا يعني ذلك قراءة النص الكامل لكل ورقة. افتح الدراسة الأصلية وتحقق من بياناتها ومنهجيتها قبل الاستشهاد بها. قد يتعذر أحد المصادر بينما تنجح المصادر الأخرى؛ وستظهر حالة كل محرك بصورة مستقلة.</p><p><b>تنبيه علمي:</b> التحليل يعتمد على البيانات والملخصات التي أعادها البحث، ولا يعني بالضرورة قراءة النص الكامل لكل ورقة. افتح الدراسة الأصلية وتحقق من مؤلفيها وسنة نشرها ومنهجيتها ونتائجها قبل الاستشهاد بها. Consensus أداة للعثور على الأبحاث، وليس ضماناً لصحة كل نتيجة أو إجماعاً علمياً.</p>
+              <p>بعد جمع النتائج، ترسل المنصة البيانات والملخصات المتاحة إلى OpenAI لتحليلها ومقارنة أوجه الاتفاق والاختلاف وحدود الأدلة. لا يعني ذلك قراءة النص الكامل لكل ورقة. افتح الدراسة الأصلية وتحقق من بياناتها ومنهجيتها قبل الاستشهاد بها. قد يتعذر أحد المصادر بينما تنجح المصادر الأخرى؛ وستظهر حالة كل محرك بصورة مستقلة.</p><p><b>تنبيه علمي:</b> التحليل يعتمد على البيانات والملخصات التي أعادها البحث، ولا يعني بالضرورة قراءة النص الكامل لكل ورقة. افتح الدراسة الأصلية وتحقق من مؤلفيها وسنة نشرها ومنهجيتها ونتائجها قبل الاستشهاد بها. تظل مراجعة الدراسة الأصلية ضرورية؛ فنتائج الفهارس والملخصات لا تغني عن قراءة المصدر.</p>
             </div>
             <div className="about-section">
               <h3>ثالثاً: أين تظهر نتائج البحث المدمج؟</h3>
@@ -400,21 +396,20 @@ export default function Home() {
       </div>}
 
       <section className="status-row" aria-live="polite">
-        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + "/5 جاهزة" : readyCount + " of 5 engines configured") : (lang === "ar" ? "جارٍ الفحص…" : "Checking services…")}</span>
-        <span className="status-note">{status ? (status.consensus ? (lang === "ar" ? "البحث جاهز" : "Academic search configured") : (lang === "ar" ? "البحث غير مهيأ" : "Academic search not configured")) : (lang === "ar" ? "جارٍ التحقق" : "This may take a moment")}</span>
+        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + "/2 محركان مجانيان جاهزان" : readyCount + "/2 free engines ready") : (lang === "ar" ? "جارٍ الفحص…" : "Checking services…")}</span>
+        <span className="status-note">{status ? (status.academicSearch ? (lang === "ar" ? "بحث أكاديمي مجاني" : "Free academic search") : (lang === "ar" ? "البحث غير متاح" : "Academic search unavailable")) : (lang === "ar" ? "جارٍ التحقق" : "This may take a moment")}</span>
       </section>
 
       {researchOpen && <section className="research-panel glass">
         <div className="panel-heading"><div><span className="eyebrow">ACADEMIC DISCOVERY</span><h2>{lang === "ar" ? "البحث الأكاديمي متعدد المحركات" : "Multi-engine academic search"}</h2></div><button className="close-button" onClick={() => setResearchOpen(false)} aria-label="Close">×</button></div>
-        <p>{lang === "ar" ? "اختر محركاً واحداً أو ادمج المحركات الثلاثة في بحث متزامن. تُجمع النتائج وتُزال المكررات، ثم يحلل OpenAI الدراسات المتاحة." : "Choose one engine or combine all three in a parallel search. Results are merged and deduplicated, then OpenAI analyzes the available papers."}</p>
+        <p>{lang === "ar" ? "ابحث مجاناً في Semantic Scholar وOpenAlex، ثم حلّل الدراسات باستخدام Gemini أو Groq ضمن الحصص المجانية." : "Search Semantic Scholar and OpenAlex for free, then analyze papers with Gemini or Groq within their free quotas."}</p>
         <div className="research-engine-select">
           <div className="research-engine-heading">
             <b>{lang === "ar" ? "محركات البحث الأكاديمي" : "Academic search engines"}</b>
-            <button type="button" onClick={() => setSearchSources(searchSources.length === 3 ? [] : ["consensus", "semantic_scholar", "openalex"])}>{searchSources.length === 3 ? (lang === "ar" ? "إلغاء تحديد الكل" : "Clear all") : (lang === "ar" ? "تحديد الكل" : "Select all")}</button>
+            <button type="button" onClick={() => setSearchSources(searchSources.length === 2 ? [] : ["semantic_scholar", "openalex"])}>{searchSources.length === 2 ? (lang === "ar" ? "إلغاء تحديد الكل" : "Clear all") : (lang === "ar" ? "تحديد الكل" : "Select all")}</button>
           </div>
           <div className="research-engine-options">
             {([
-              ["consensus", "Consensus", lang === "ar" ? "بحث دلالي عن الدراسات والأدلة العلمية" : "Semantic discovery of research and evidence"],
               ["semantic_scholar", "Semantic Scholar", lang === "ar" ? "أوراق علمية ومؤلفون واستشهادات" : "Papers, authors and citations"],
               ["openalex", "OpenAlex", lang === "ar" ? "فهرس واسع للمنشورات والباحثين" : "Broad index of works and researchers"]
             ] as [SearchSource, string, string][]).map(([id, name, description]) => <button type="button" role="checkbox" aria-checked={searchSources.includes(id)} className={"research-engine-option " + (searchSources.includes(id) ? "selected" : "")} key={id} onClick={() => setSearchSources(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id])}>
@@ -422,7 +417,7 @@ export default function Home() {
               <span className="research-engine-copy"><b>{name}</b><small>{description}</small></span>
             </button>)}
           </div>
-          <div className="research-merge-note">{lang === "ar" ? `تم اختيار ${searchSources.length} من 3 محركات` : `${searchSources.length} of 3 engines selected`}</div>
+          <div className="research-merge-note">{lang === "ar" ? `تم اختيار ${searchSources.length} من 2 محركين` : `${searchSources.length} of 2 engines selected`}</div>
           {searchStatuses.length > 0 && <div className="research-source-status">{searchStatuses.map(source => <span className={"source-status " + source.status} key={source.id}><i />{source.name}: {source.status === "success" ? (lang === "ar" ? ` ${source.count} نتيجة` : ` ${source.count} results`) : source.status === "empty" ? (lang === "ar" ? " لا توجد نتائج" : " no results") : (lang === "ar" ? " تعذر الاتصال" : " unavailable")}</span>)}</div>}
         </div>
         <form onSubmit={searchPapers} className="research-form">
@@ -431,7 +426,7 @@ export default function Home() {
         </form>
         {researchError && <div className="inline-error">{researchError}</div>}
         {researchAnalysis && <section className="research-analysis">
-          <div className="panel-heading"><div><span className="eyebrow">OPENAI ANALYSIS</span><h3>{lang === "ar" ? "تحليل OpenAI للدراسات" : "OpenAI analysis of the studies"}</h3></div><small>{lang === "ar" ? "مبني على نتائج Consensus" : "Based on Consensus results"}</small></div>
+          <div className="panel-heading"><div><span className="eyebrow">FREE AI ANALYSIS</span><h3>{lang === "ar" ? "تحليل الدراسات بالمحركات المجانية" : "Free AI analysis of the studies"}</h3></div><small>{lang === "ar" ? "مبني على نتائج البحث المفتوح" : "Based on open research results"}</small></div>
           <div className="research-analysis-content">{researchAnalysis}</div>
         </section>}
         {researchAnalysisError && papers.length > 0 && <div className="inline-error">{researchAnalysisError}</div>}
@@ -439,10 +434,10 @@ export default function Home() {
           <b>{p.title}</b>
           <small>{[p.authors, p.year, p.journal].filter(Boolean).join(" · ")}</small>
           {p.abstract && <p>{p.abstract}</p>}
-          <small>{p.citations !== null ? (lang === "ar" ? "الاستشهادات: " : "Citations: ") + p.citations : ""}{p.doi ? " · DOI: " + p.doi : ""}</small><div className="paper-sources">{(p.sources || []).map(source => <span key={source}>{source === "semantic_scholar" ? "Semantic Scholar" : source === "openalex" ? "OpenAlex" : "Consensus"}</span>)}</div>
+          <small>{p.citations !== null ? (lang === "ar" ? "الاستشهادات: " : "Citations: ") + p.citations : ""}{p.doi ? " · DOI: " + p.doi : ""}</small><div className="paper-sources">{(p.sources || []).map(source => <span key={source}>{source === "semantic_scholar" ? "Semantic Scholar" : source === "openalex" ? "OpenAlex" : "Semantic Scholar"}</span>)}</div>
           {p.url && <a href={p.url} target="_blank" rel="noreferrer">{lang === "ar" ? "فتح الدراسة ↗" : "Open paper ↗"}</a>}
         </article>)}</div>}
-        <small className="research-footnote">{lang === "ar" ? "تحقّق من بيانات الدراسة والنص الكامل قبل الاستشهاد بها. استخدام البحث يخضع لحصة حساب Consensus." : "Verify paper details and full text before citing. Searches count toward your Consensus allowance."}</small>
+        <small className="research-footnote">{lang === "ar" ? "تحقّق من بيانات الدراسة والنص الكامل قبل الاستشهاد بها. يعتمد البحث على الخدمات المفتوحة وحصصها المجانية." : "Verify paper details and full text before citing. Search uses open services and their free usage limits."}</small>
       </section>}
 
       <section className={"conversation-area " + (messages.length ? "has-messages" : "")}>
