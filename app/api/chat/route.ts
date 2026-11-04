@@ -119,7 +119,7 @@ async function enrichWithConsensus(messages: Msg[]): Promise<{ messages: Msg[]; 
   const q = last?.content?.trim() || "";
   // لا نستدعي Consensus لكل سؤال عام؛ نستخدمه عند طلب بحث/مراجع صراحة
   // أو عند طرح سؤال تجريبي/علمي يحتاج إلى إسناد بالدراسات.
-  const explicitResearch = /دراسات|أبحاث|بحث علمي|مصادر|مراجع|استشهادات|أدلة علمية|دراسة حديثة|مراجعة منهجية|تحليل تلوي|research|studies|scientific sources|references|citations|peer[- ]reviewed|systematic review|meta[- ]analysis|evidence/i.test(q);
+  const explicitResearch = /دراسات|أبحاث|بحث علمي|مصادر علمية|مراجع علمية|اذكر المصادر|اذكر المراجع|استشهد بالدراسات|استشهادات|أدلة علمية|دراسة حديثة|مراجعة منهجية|تحليل تلوي|research|studies|scientific sources|references|citations|peer[- ]reviewed|systematic review|meta[- ]analysis|evidence/i.test(q);
   const scientificTopic = /طب|طبي|صحة|مرض|دواء|علاج|لقاح|تغذية|نفس|نفسي|علم النفس|أحياء|بيولوجيا|وراثة|جينات|فيزياء|كيمياء|فلك|مناخ|بيئة|هندسة|ذكاء اصطناعي|تعلم آلي|علوم|تقنية|إحصاء|اقتصاد تجريبي|medicine|medical|health|disease|drug|treatment|vaccine|nutrition|psychology|biology|genetics|physics|chemistry|astronomy|climate|environment|engineering|artificial intelligence|machine learning|science|technology|statistics/i.test(q);
   const empiricalIntent = /ما مدى|هل ثبت|هل تؤكد الدراسات|ما evidence|ما الأدلة|ما نتائج|ما تأثير|ما أثر|ما فعالية|ما كفاءة|ما العلاقة|ما أسباب|كيف يؤثر|كيف تعمل|قارن|حلل|قيّم|فسّر|اشرح|what evidence|how effective|what effect|what impact|what causes|how does|compare|analy[sz]e|evaluate|explain/i.test(q);
   const relevant = explicitResearch || (scientificTopic && empiricalIntent);
