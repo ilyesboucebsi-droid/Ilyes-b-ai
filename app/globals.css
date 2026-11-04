@@ -521,3 +521,36 @@ body {
 .platform-background::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(5,13,25,.78),rgba(8,17,31,.68) 48%,rgba(5,13,25,.82))}
 .owner-admin-link{border-color:#2b718a!important;background:linear-gradient(120deg,#12394d,#172c50)!important;color:#a8edfa!important;font-weight:800!important}
 @media(max-width:760px){.platform-background{background-attachment:scroll}.platform-background::after{background:rgba(5,13,25,.76)}}
+
+
+/* Open answer layout: remove the surrounding panel from assistant responses. */
+.messages-list{width:100%;max-width:860px;margin:0 auto}
+.message-card.assistant{
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  padding:10px 0 18px!important;
+  margin:0 0 18px!important;
+}
+.message-card.assistant .message-heading{padding:0 0 7px;border:0;background:transparent}
+.message-card.assistant .message-avatar{
+  width:27px;height:27px;border-radius:9px;
+  background:rgba(120,160,195,.13)!important;
+}
+.message-card.assistant .message-content{
+  margin:8px 0 0!important;padding:0!important;
+  background:transparent!important;border:0!important;
+  box-shadow:none!important;max-width:100%;
+}
+.message-card.assistant .answer-export{
+  border:0!important;background:transparent!important;
+  padding:5px 0 0!important;margin-top:10px;
+}
+.message-card.assistant .chat-sources,
+.message-card.assistant .message-translation{border-radius:10px}
+@media(max-width:760px){
+  .messages-list{max-width:100%}
+  .message-card.assistant{padding:8px 0 15px!important;margin-bottom:14px!important}
+  .message-card.assistant .message-content{padding:0!important}
+}
