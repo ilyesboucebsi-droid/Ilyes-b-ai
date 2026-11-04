@@ -5,28 +5,28 @@ import { getPlatformState } from "@/lib/admin";
 
 export const runtime = "nodejs";
 
-type Source = "consensus" | "semantic_scholar" | "openalex";
+type Source = "semantic_scholar" | "openalex";
 type Paper = {
   title: string; authors: string; year: string; journal: string; abstract: string;
   url: string; doi: string; citations: number | null; sources: Source[];
 };
 
 const SOURCE_LABELS: Record<Source, string> = {
-  consensus: "Consensus",
   semantic_scholar: "Semantic Scholar",
   openalex: "OpenAlex"
 };
 
-async function checkLimit(req: NextRequest): Promise<"allowed" | "limited" | "unavailable"> {
+async function checkLimit(req: NextRequest): Promise<"allowed" | "limited"> {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return "unavailable";
+  // لا نجعل غياب خدمة Redis المجانية سبباً لتعطيل البحث؛ تبقى الحماية عند توفرها.
+  if (!url || !token) return "allowed";
   try {
     const redis = new Redis({ url, token });
-    const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, "1 m"), prefix: "ilyesb:research" });
+    const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, "1 m"), prefix: "ilyes-ai:free-research" });
     const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "unknown";
     return (await limiter.limit(ip)).success ? "allowed" : "limited";
-  } catch { return "unavailable"; }
+  } catch { return "allowed"; }
 }
 
 function str(value: unknown): string {
@@ -35,7 +35,7 @@ function str(value: unknown): string {
   return "";
 }
 function doiOf(value: unknown): string {
-  return str(value).replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").trim().toLowerCase();
+  return str(value).replace(/^https?:\\/\\/(dx\\.)?doi\\.org\\//i, "").trim().toLowerCase();
 }
 function normalize(p: Partial<Paper>, source: Source): Paper | null {
   const title = str(p.title).trim();
@@ -49,7 +49,7 @@ function normalize(p: Partial<Paper>, source: Source): Paper | null {
 function mergePapers(groups: { source: Source; papers: Paper[] }[]): Paper[] {
   const merged = new Map<string, Paper>();
   for (const group of groups) for (const paper of group.papers) {
-    const key = paper.doi ? "doi:" + paper.doi : "title:" + paper.title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const key = paper.doi ? "doi:" + paper.doi : "title:" + paper.title.toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
     const old = merged.get(key);
     if (!old) merged.set(key, paper);
     else {
@@ -66,22 +66,6 @@ async function fetchJson(url: string, init: RequestInit = {}) {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(16000) });
   if (!response.ok) throw new Error("HTTP " + response.status);
   return response.json();
-}
-
-async function searchConsensus(query: string): Promise<Paper[]> {
-  const key = process.env.consensus_api_key || process.env.CONSENSUS_API_KEY;
-  if (!key) throw new Error("مفتاح Consensus غير مضبوط");
-  const url = new URL("https://api.consensus.app/v1/search");
-  url.searchParams.set("query", query); url.searchParams.set("page_size", "8");
-  url.searchParams.set("include_semantic_score", "true");
-  const data = await fetchJson(url.toString(), { headers: { "x-api-key": key, Accept: "application/json" } });
-  const rows = Array.isArray(data) ? data : data.results || data.papers || data.items || data.data || [];
-  return (Array.isArray(rows) ? rows : []).map((p: any) => normalize({
-    title: p.title || p.paper_title || p.name, authors: p.authors || p.author_names || p.author,
-    year: p.year || p.publication_year || p.pub_year, journal: p.journal || p.venue || p.journal_name,
-    abstract: p.abstract || p.summary || p.snippet, url: p.url || p.paper_url || p.link || p.open_access_url,
-    doi: p.doi, citations: p.citation_count ?? p.citations
-  }, "consensus")).filter(Boolean) as Paper[];
 }
 
 async function searchSemanticScholar(query: string): Promise<Paper[]> {
@@ -108,38 +92,77 @@ async function searchOpenAlex(query: string): Promise<Paper[]> {
   }, "openalex")).filter(Boolean) as Paper[];
 }
 
+async function analyzeWithGemini(instructions: string, input: string): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("مفتاح Gemini المجاني غير مضبوط.");
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: instructions }] },
+      contents: [{ role: "user", parts: [{ text: input }] }],
+      generationConfig: { maxOutputTokens: 3000, temperature: 0.4 }
+    }),
+    signal: AbortSignal.timeout(45000)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error?.message || "تعذر تحليل الدراسات عبر Gemini.");
+  const answer = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
+  if (!answer.trim()) throw new Error("لم يصل تحليل من Gemini.");
+  return answer.trim();
+}
+
+async function analyzeWithGroq(instructions: string, input: string): Promise<string> {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error("مفتاح Groq المجاني غير مضبوط.");
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+    body: JSON.stringify({
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
+      messages: [{ role: "system", content: instructions }, { role: "user", content: input }],
+      max_completion_tokens: 3000, temperature: 0.4
+    }),
+    signal: AbortSignal.timeout(45000)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error?.message || "تعذر تحليل الدراسات عبر Groq.");
+  const answer = data?.choices?.[0]?.message?.content || "";
+  if (!answer.trim()) throw new Error("لم يصل تحليل من Groq.");
+  return answer.trim();
+}
+
 export async function POST(req: NextRequest) {
   try {
     try {
       const platform = await getPlatformState();
       if (platform.paused || platform.maintenance) return NextResponse.json({ error: platform.maintenance ? "المنصة في وضع الصيانة مؤقتاً. حاول لاحقاً." : "تم إيقاف المنصة مؤقتاً." }, { status: 503 });
-    } catch { /* Preserve existing service if platform-state storage is temporarily unreachable. */ }
+    } catch { /* لا نعطل الوظائف العامة عند تعذر قراءة حالة المنصة. */ }
+
     const limitState = await checkLimit(req);
-    if (limitState !== "allowed") return NextResponse.json(
-      { error: limitState === "limited" ? "تم بلوغ حد البحث مؤقتاً. حاول بعد دقيقة." : "خدمة الحماية غير متاحة حالياً. يرجى المحاولة لاحقاً." },
-      { status: limitState === "limited" ? 429 : 503 }
-    );
+    if (limitState === "limited") return NextResponse.json({ error: "تم بلوغ حد البحث المؤقت. حاول بعد دقيقة." }, { status: 429 });
+
     const body = await req.json();
     const query = typeof body.query === "string" ? body.query.trim() : "";
     if (query.length < 3 || query.length > 500) return NextResponse.json({ error: "اكتب عبارة بحث من 3 إلى 500 حرف." }, { status: 400 });
 
-    const allowed: Source[] = ["consensus", "semantic_scholar", "openalex"];
+    const allowed: Source[] = ["semantic_scholar", "openalex"];
     const requested: Source[] = Array.isArray(body.sources)
       ? allowed.filter(source => body.sources.includes(source))
       : allowed;
-    if (!requested.length) return NextResponse.json({ error: "اختر محرك بحث واحداً على الأقل." }, { status: 400 });
+    const selected = requested.length ? requested : allowed;
 
     const jobs: Record<Source, () => Promise<Paper[]>> = {
-      consensus: () => searchConsensus(query),
       semantic_scholar: () => searchSemanticScholar(query),
       openalex: () => searchOpenAlex(query)
     };
-    const settled = await Promise.all(requested.map(async source => {
+    const settled = await Promise.all(selected.map(async source => {
       try { return { source, papers: await jobs[source](), ok: true, error: null as string | null }; }
       catch (e) { return { source, papers: [] as Paper[], ok: false, error: e instanceof Error ? e.message : "تعذر الاتصال" }; }
     }));
     const papers = mergePapers(settled.filter(x => x.ok).map(x => ({ source: x.source, papers: x.papers }))).slice(0, 20);
-    const sourceStatuses = settled.map(x => ({
+    const sources = settled.map(x => ({
       id: x.source, name: SOURCE_LABELS[x.source], status: x.ok ? (x.papers.length ? "success" : "empty") : "error",
       count: x.papers.length, error: x.error
     }));
@@ -149,72 +172,36 @@ export async function POST(req: NextRequest) {
     let analysisError: string | null = null;
     if (papers.length) {
       const sourceMaterial = papers.map((p, i) => [
-        `[${i + 1}] العنوان: ${p.title}`, `المؤلفون: ${p.authors || "غير متاح"}`,
-        `السنة: ${p.year || "غير متاحة"}`, `المجلة: ${p.journal || "غير متاحة"}`,
-        `المصادر: ${p.sources.map(s => SOURCE_LABELS[s]).join("، ")}`,
-        `الملخص: ${(p.abstract || "لا يوجد ملخص متاح.").slice(0, 2200)}`,
-        `DOI: ${p.doi || "غير متاح"}`, `الرابط: ${p.url || "غير متاح"}`
-      ].join("\n")).join("\n\n");
+        "[" + (i + 1) + "] العنوان: " + p.title, "المؤلفون: " + (p.authors || "غير متاح"),
+        "السنة: " + (p.year || "غير متاحة"), "المجلة: " + (p.journal || "غير متاحة"),
+        "المصادر: " + p.sources.map(s => SOURCE_LABELS[s]).join("، "),
+        "الملخص: " + (p.abstract || "لا يوجد ملخص متاح.").slice(0, 1800),
+        "DOI: " + (p.doi || "غير متاح"), "الرابط: " + (p.url || "غير متاح")
+      ].join("\\n")).join("\\n\\n");
       const instructions = "أنت مساعد بحث أكاديمي دقيق. حلّل الدراسات المعروضة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن الاتفاق والاختلاف وحدود الأدلة، واستخدم إحالات [1] [2] المطابقة لقائمة الدراسات. لا تختلق بيانات أو مراجع أو استنتاجات. صرّح بنقص الملخصات عند الحاجة. إذا كان السؤال قانونياً، فلا تعتبر الدراسات مصدراً رسمياً للتشريع أو الأحكام، ولا تخترع أرقام مواد أو تنسب إليها أحكاماً غير متحققة. استخدم عربية طبيعية مباشرة.";
-      const input = `سؤال البحث: ${query}\n\nالدراسات التي عثر عليها محركات البحث المحددة:\n${sourceMaterial}\n\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود البيانات المتاحة.`;
-      const openaiKey = process.env.OPENAI_API_KEY;
-      const deepseekKey = process.env.DEEPSEEK_API_KEY;
-      const tryDeepseek = async () => {
-        if (!deepseekKey) throw new Error("مفتاح DeepSeek غير مضبوط.");
-        const response = await fetch("https://api.deepseek.com/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: "Bearer " + deepseekKey },
-          body: JSON.stringify({
-            model: process.env.DEEPSEEK_MODEL || "deepseek-flash",
-            messages: [{ role: "system", content: instructions }, { role: "user", content: input }],
-            thinking: { type: "enabled" }, reasoning_effort: "high",
-            max_tokens: 6000, stream: false
-          }),
-          signal: AbortSignal.timeout(45000)
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data?.error?.message || "تعذر إكمال تحليل DeepSeek.");
-        const answer = data?.choices?.[0]?.message?.content;
-        if (typeof answer !== "string" || !answer.trim()) throw new Error("لم يصل رد تحليلي من DeepSeek.");
-        return answer.trim();
-      };
-      if (openaiKey) {
+      const input = "سؤال البحث: " + query + "\\n\\nالدراسات التي عثر عليها محركا البحث المجانيان:\\n" + sourceMaterial + "\\n\\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود البيانات المتاحة.";
+      const attempts: Array<{ name: string; run: () => Promise<string> }> = [
+        { name: "Gemini", run: () => analyzeWithGemini(instructions, input) },
+        { name: "Groq", run: () => analyzeWithGroq(instructions, input) }
+      ];
+      const errors: string[] = [];
+      for (const attempt of attempts) {
         try {
-          const response = await fetch("https://api.openai.com/v1/responses", {
-            method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + openaiKey },
-            body: JSON.stringify({
-              model: process.env.OPENAI_MODEL || "gpt-6.1-sol",
-              reasoning: { effort: process.env.OPENAI_REASONING_EFFORT || "low" },
-              instructions, input, max_output_tokens: 1600
-            }),
-            signal: AbortSignal.timeout(30000)
-          });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result?.error?.message || "تعذر إكمال تحليل OpenAI.");
-          const blocks = Array.isArray(result.output) ? result.output.flatMap((item: any) => Array.isArray(item.content) ? item.content : []) : [];
-          const answer = typeof result.output_text === "string" ? result.output_text : blocks.filter((b: any) => b.type === "output_text" && typeof b.text === "string").map((b: any) => b.text).join("\n");
-          if (!answer.trim()) throw new Error("لم يصل رد تحليلي من OpenAI.");
-          analysis = answer.trim();
-          analysisEngine = "openai";
+          analysis = await attempt.run();
+          analysisEngine = attempt.name.toLowerCase();
+          break;
         } catch (e) {
-          if (deepseekKey) {
-            try { analysis = await tryDeepseek(); analysisEngine = "deepseek"; }
-            catch (fallbackError) { analysisError = (e instanceof Error ? e.message : "تعذر تحليل OpenAI.") + "؛ وتعذر البديل DeepSeek: " + (fallbackError instanceof Error ? fallbackError.message : "خطأ غير معروف"); }
-          } else analysisError = e instanceof Error ? e.message : "تعذر تحليل الدراسات عبر OpenAI.";
+          errors.push(attempt.name + ": " + (e instanceof Error ? e.message : "تعذر التحليل"));
         }
-      } else if (deepseekKey) {
-        try { analysis = await tryDeepseek(); analysisEngine = "deepseek"; }
-        catch (e) { analysisError = e instanceof Error ? e.message : "تعذر تحليل الدراسات عبر DeepSeek."; }
-      } else {
-        analysisError = "لم يتم إعداد مفتاح OpenAI أو DeepSeek؛ عُرضت نتائج البحث دون تحليل.";
       }
+      if (!analysis) analysisError = "تعذر تحليل الدراسات عبر الحصص المجانية المتاحة. " + errors.join("؛ ");
     } else {
       analysisError = "لم تُرجع محركات البحث دراسات قابلة للتحليل.";
     }
 
     return NextResponse.json({
       papers, total: papers.length, analysis, analysisEngine,
-      analysisError, sources: sourceStatuses, selectedSources: requested
+      analysisError, sources, selectedSources: selected
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "حدث خطأ أثناء البحث الأكاديمي.";
