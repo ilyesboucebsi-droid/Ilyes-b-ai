@@ -455,3 +455,49 @@ body :is(h1, h2, h3, h4, h5, h6) {
   font-weight: 700 !important;
   line-height: 1.15 !important;
 }
+
+
+/* Final mobile header layout: reserve space for the fixed language/about controls */
+@media (max-width: 760px) {
+  .topbar {
+    min-height: 132px !important;
+    padding: 9px 10px 9px 70px !important;
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .left-tools {
+    position: absolute !important;
+    left: 0 !important;
+    top: 9px !important;
+    z-index: 5 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 7px !important;
+  }
+  .left-tools .language-toggle,
+  .left-tools .about-toggle {
+    min-width: 52px !important;
+    min-height: 34px !important;
+    padding: 6px 5px !important;
+    white-space: nowrap !important;
+    font-size: 11px !important;
+  }
+  .brand { min-width: 0 !important; }
+  .toolbar {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+  }
+  .toolbar .join-link,
+  .toolbar .admin-link { position: static !important; }
+}
+@media (max-width: 380px) {
+  .topbar { padding-left: 66px !important; }
+  .left-tools .language-toggle,
+  .left-tools .about-toggle { min-width: 48px !important; font-size: 10px !important; }
+}
