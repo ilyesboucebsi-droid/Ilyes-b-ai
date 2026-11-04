@@ -663,3 +663,40 @@ body {
   .toolbar{gap:7px!important}
   .toolbar>.tool-button{padding:9px 10px!important;font-size:11px!important}
 }
+
+
+/* Make the header panel and button rail transparent so the custom wallpaper remains visible. */
+.topbar,
+.toolbar{
+  background:transparent!important;
+  background-color:transparent!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+.topbar{
+  border-color:transparent!important;
+}
+.toolbar{
+  border:0!important;
+}
+.left-tools .tool-button,
+.toolbar>.tool-button,
+.toolbar>.engine-picker{
+  background:rgba(7,18,32,.58)!important;
+  border-color:rgba(185,210,235,.28)!important;
+  color:#edf6ff!important;
+  backdrop-filter:blur(7px);
+  -webkit-backdrop-filter:blur(7px);
+}
+.toolbar>.engine-picker select,
+.toolbar>.engine-picker option{
+  color:#edf6ff!important;
+}
+.toolbar>.engine-picker option{background:#102137!important}
+.left-tools .tool-button:hover,
+.toolbar>.tool-button:hover,
+.toolbar>.tool-button.active{
+  background:rgba(19,48,70,.78)!important;
+  border-color:rgba(104,211,235,.65)!important;
+}
