@@ -5,6 +5,7 @@ import "./admin.css";
 type State = { paused: boolean; maintenance: boolean; joinEnabled: boolean; updatedAt: string | null };
 type JoinRequest = { id: string; name: string; email: string; message: string; createdAt: string };
 type Audit = { action: string; at: string };
+type Analytics = { views7: number; views30: number; unique30: number; pages: { name: string; count: number }[]; referrers: { name: string; count: number }[]; devices: { name: string; count: number }[]; daily: { day: string; views: number }[]; sampleSize: number; updatedAt: string };
 
 export default function AdminPage() {
   const [password, setPassword] = useState("");
@@ -12,18 +13,21 @@ export default function AdminPage() {
   const [state, setState] = useState<State | null>(null);
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [analyticsError, setAnalyticsError] = useState("");
+  const [analyticsBusy, setAnalyticsBusy] = useState(false);
   const [action, setAction] = useState("");
   const [actionPassword, setActionPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const load = useCallback(async () => {
+  const loadAnalytics = useCallback(async () => {\n    setAnalyticsBusy(true); setAnalyticsError("");\n    try {\n      const response = await fetch("/api/admin/analytics", { cache: "no-store" });\n      const data = await response.json();\n      if (!response.ok) throw new Error(data.error || "تعذر تحميل الإحصائيات.");\n      setAnalytics(data);\n    } catch (e) { setAnalyticsError(e instanceof Error ? e.message : "تعذر تحميل الإحصائيات."); }\n    finally { setAnalyticsBusy(false); }\n  }, []);\n\n  const load = useCallback(async () => {
     const response = await fetch("/api/admin/state", { cache: "no-store" });
     if (response.status === 401) { setLoggedIn(false); return; }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "تعذر تحميل لوحة الإدارة.");
-    setState(data.state); setRequests(data.requests || []); setAudit(data.audit || []); setLoggedIn(true);
+    setState(data.state); setRequests(data.requests || []); setAudit(data.audit || []); setLoggedIn(true);\n    await loadAnalytics();
   }, []);
 
   useEffect(() => { load().catch(e => setError(e.message)); }, [load]);
@@ -72,6 +76,25 @@ export default function AdminPage() {
       <small>لا تشارك كلمة المرور أو تضعها في ملفات المشروع.</small>
     </section> : <>
       <section className="admin-heading"><div><span className="admin-kicker">PLATFORM OVERVIEW</span><h1>مركز إدارة المنصة</h1><p>تحكم في حالة التشغيل وبوابة الانضمام، واطّلع على أداء المنصة.</p></div><div className="admin-heading-actions"><a className="admin-insights-button" href="https://vercel.com/ilyes-9537/ilyes-b-ai/analytics" target="_blank" rel="noopener noreferrer"><span>↗</span><b>رؤى المنصة</b></a><button className="admin-logout" onClick={logout}>تسجيل الخروج</button></div></section>
+      <section className="admin-section analytics-panel" id="platform-analytics">
+        <div className="admin-section-title"><div><span className="admin-kicker">VISITOR INSIGHTS</span><h2>إحصائيات ورؤى الزوار</h2><p className="admin-description">ملخص مباشر لزيارات المنصة خلال آخر 7 و30 يوماً.</p></div><button className="analytics-refresh" onClick={loadAnalytics} disabled={analyticsBusy}>{analyticsBusy ? "جارٍ التحديث…" : "↻ تحديث الإحصائيات"}</button></div>
+        {analyticsError && <p className="analytics-error">{analyticsError}</p>}
+        <div className="analytics-cards">
+          <article><span>الزيارات · 7 أيام</span><b>{analytics ? analytics.views7.toLocaleString("ar-DZ") : "—"}</b></article>
+          <article><span>الزيارات · 30 يوماً</span><b>{analytics ? analytics.views30.toLocaleString("ar-DZ") : "—"}</b></article>
+          <article><span>زوار مميزون · 30 يوماً</span><b>{analytics ? analytics.unique30.toLocaleString("ar-DZ") : "—"}</b></article>
+        </div>
+        {analytics && <>
+          <div className="analytics-columns">
+            <div className="analytics-list"><h3>الصفحات الأكثر زيارة</h3>{analytics.pages.length ? analytics.pages.map(x=><div key={x.name}><span dir="ltr">{x.name}</span><b>{x.count.toLocaleString("ar-DZ")}</b></div>) : <p className="empty-state">لا توجد زيارات مسجلة بعد.</p>}</div>
+            <div className="analytics-list"><h3>مصادر الوصول</h3>{analytics.referrers.length ? analytics.referrers.map(x=><div key={x.name}><span dir="ltr">{x.name}</span><b>{x.count.toLocaleString("ar-DZ")}</b></div>) : <p className="empty-state">ستظهر المصادر بعد تسجيل الزيارات.</p>}</div>
+            <div className="analytics-list"><h3>الأجهزة المستخدمة</h3>{analytics.devices.length ? analytics.devices.map(x=><div key={x.name}><span>{x.name}</span><b>{x.count.toLocaleString("ar-DZ")}</b></div>) : <p className="empty-state">لا توجد بيانات بعد.</p>}</div>
+          </div>
+          <div className="analytics-daily"><h3>الزيارات اليومية · آخر 7 أيام</h3><div>{analytics.daily.map(x=><div key={x.day}><span>{new Date(x.day+"T00:00:00Z").toLocaleDateString("ar-DZ",{day:"numeric",month:"numeric",timeZone:"UTC"})}</span><b>{x.views.toLocaleString("ar-DZ")}</b></div>)}</div></div>
+          <p className="analytics-footnote">آخر تحديث: {new Date(analytics.updatedAt).toLocaleString("ar-DZ")} · عينة تفاصيل الصفحات والمصادر: {analytics.sampleSize.toLocaleString("ar-DZ")} زيارة كحد أقصى من آخر 5000 حدث محفوظ.</p>
+        </>}
+        <p className="analytics-privacy">القياس لا يسجل أسماء الزوار أو عناوين IP؛ يُستخدم معرّف عشوائي يُحوّل إلى بصمة مشفّرة لحساب الزوار المميزين. لا تُسجل صفحات الإدارة.</p>
+      </section>
       {state && <div className="admin-status-grid">
         <article><span>حالة المنصة</span><b className={state.paused ? "bad" : "good"}>{state.paused ? "متوقفة مؤقتاً" : "تعمل"}</b></article>
         <article><span>وضع الصيانة</span><b className={state.maintenance ? "warn" : "good"}>{state.maintenance ? "مفعّل" : "غير مفعّل"}</b></article>
