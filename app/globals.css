@@ -405,3 +405,22 @@ button,input,textarea,select{
   font-size:16px!important;
   font-weight:700!important;
 }
+
+
+/* Explicitly select Simplified Arabic (not Simplified Arabic Fixed) */
+html,
+body,
+body * {
+  font-family: "Simplified Arabic" !important;
+}
+
+body { font-size: 14px !important; }
+body :is(p, li, label, small, strong, b, span, a, button, input, textarea, select, option, summary, blockquote) {
+  font-size: 14px;
+}
+body :is(h1, h2, h3, h4, h5, h6) {
+  font-family: "Simplified Arabic" !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  line-height: 1.8;
+}
