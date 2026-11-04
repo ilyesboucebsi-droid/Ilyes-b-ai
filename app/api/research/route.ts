@@ -13,7 +13,8 @@ type Paper = {
 
 const SOURCE_LABELS: Record<Source, string> = {
   semantic_scholar: "Semantic Scholar",
-  openalex: "OpenAlex"
+  openalex: "OpenAlex",
+  consensus: "Consensus"
 };
 
 async function checkLimit(req: NextRequest): Promise<"allowed" | "limited"> {
@@ -175,7 +176,8 @@ export async function POST(req: NextRequest) {
 
     const jobs: Record<Source, () => Promise<Paper[]>> = {
       semantic_scholar: () => searchSemanticScholar(query),
-      openalex: () => searchOpenAlex(query)
+      openalex: () => searchOpenAlex(query),
+      consensus: () => searchConsensus(query)
     };
     const settled = await Promise.all(selected.map(async source => {
       try { return { source, papers: await jobs[source](), ok: true, error: null as string | null }; }
