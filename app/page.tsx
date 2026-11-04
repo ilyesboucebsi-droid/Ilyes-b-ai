@@ -328,7 +328,7 @@ export default function Home() {
         </div>
         <div className="brand">
           <div className="brand-mark"><span>IA</span><i>✦</i></div>
-          <div><strong>ILYES.B <em>AI</em></strong><small>{lang === "ar" ? "معرفة. بحث. إبداع." : "Knowledge. Research. Creativity."}</small></div>
+          <div><strong>ILYES <em>AI</em></strong><small>{lang === "ar" ? "معرفة. بحث. إبداع." : "Knowledge. Research. Creativity."}</small></div>
         </div>
         <div className="toolbar">
           <label className="engine-picker">
