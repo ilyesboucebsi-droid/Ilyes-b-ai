@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 type Engine = "auto" | "hybrid" | "gemini" | "groq";
 type ChatPaper = { title: string; authors: string; year: string; abstract: string; url: string; doi: string };
 type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[]; consensusUsed?: boolean; consensusPapers?: ChatPaper[]; collaboration?: { used: boolean; contributors: string[]; failures?: string[] } };
-type SearchSource = "semantic_scholar" | "openalex";
+type SearchSource = "semantic_scholar" | "openalex" | "consensus";
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null; sources: SearchSource[] };
 type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty" | "error"; count: number; error: string | null };
 type Status = { providers: Record<"gemini" | "groq", boolean>; academicSearch: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
@@ -339,7 +339,7 @@ export default function Home() {
 
             </select>
           </label>
-          <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
+          <a className="tool-button" href="https://chat.deepseek.com/" target="_blank" rel="noreferrer" title={lang === "ar" ? "فتح DeepSeek المجاني خارج المنصة" : "Open free DeepSeek chat externally"}>DeepSeek ↗</a>\n          <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
           <a className="tool-button join-link" href="/join">✦ <span>{lang === "ar" ? "انضم" : "Join"}</span></a>
           <a className="tool-button admin-link" href="/admin">⌘ <span>{lang === "ar" ? "الإدارة" : "Admin"}</span></a>
           {messages.length > 0 && <button className="tool-button" onClick={exportConversation}>⇩ <span>{lang === "ar" ? "تصدير المحادثة" : "Export chat"}</span></button>}
@@ -401,22 +401,22 @@ export default function Home() {
 
       {researchOpen && <section className="research-panel glass">
         <div className="panel-heading"><div><span className="eyebrow">ACADEMIC DISCOVERY</span><h2>{lang === "ar" ? "البحث الأكاديمي متعدد المحركات" : "Multi-engine academic search"}</h2></div><button className="close-button" onClick={() => setResearchOpen(false)} aria-label="Close">×</button></div>
-        <p>{lang === "ar" ? "ابحث مجاناً في Semantic Scholar وOpenAlex، ثم حلّل الدراسات باستخدام Gemini أو Groq ضمن الحصص المجانية." : "Search Semantic Scholar and OpenAlex for free, then analyze papers with Gemini or Groq within their free quotas."}</p>
+        <p>{lang === "ar" ? "ابحث مجاناً في Semantic Scholar وOpenAlex وConsensus، ثم حلّل الدراسات باستخدام Gemini أو Groq ضمن الحصص المجانية." : "Search Semantic Scholar, OpenAlex and Consensus, then analyze papers with Gemini or Groq within their free quotas."}</p>
         <div className="research-engine-select">
           <div className="research-engine-heading">
             <b>{lang === "ar" ? "محركات البحث الأكاديمي" : "Academic search engines"}</b>
-            <button type="button" onClick={() => setSearchSources(searchSources.length === 2 ? [] : ["semantic_scholar", "openalex"])}>{searchSources.length === 2 ? (lang === "ar" ? "إلغاء تحديد الكل" : "Clear all") : (lang === "ar" ? "تحديد الكل" : "Select all")}</button>
+            <button type="button" onClick={() => setSearchSources(searchSources.length === 3 ? [] : ["semantic_scholar", "openalex", "consensus"])}>{searchSources.length === 3 ? (lang === "ar" ? "إلغاء تحديد الكل" : "Clear all") : (lang === "ar" ? "تحديد الكل" : "Select all")}</button>
           </div>
           <div className="research-engine-options">
             {([
               ["semantic_scholar", "Semantic Scholar", lang === "ar" ? "أوراق علمية ومؤلفون واستشهادات" : "Papers, authors and citations"],
-              ["openalex", "OpenAlex", lang === "ar" ? "فهرس واسع للمنشورات والباحثين" : "Broad index of works and researchers"]
+              ["openalex", "OpenAlex", lang === "ar" ? "فهرس واسع للمنشورات والباحثين" : "Broad index of works and researchers"],\n              ["consensus", "Consensus", lang === "ar" ? "بحث أكاديمي مجاني؛ 3 أوراق لكل بحث دون حساب" : "Free academic search; 3 papers per search without an account"]
             ] as [SearchSource, string, string][]).map(([id, name, description]) => <button type="button" role="checkbox" aria-checked={searchSources.includes(id)} className={"research-engine-option " + (searchSources.includes(id) ? "selected" : "")} key={id} onClick={() => setSearchSources(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id])}>
               <span className="research-engine-check" aria-hidden="true">{searchSources.includes(id) ? "✓" : ""}</span>
               <span className="research-engine-copy"><b>{name}</b><small>{description}</small></span>
             </button>)}
           </div>
-          <div className="research-merge-note">{lang === "ar" ? `تم اختيار ${searchSources.length} من 2 محركين` : `${searchSources.length} of 2 engines selected`}</div>
+          <div className="research-merge-note">{lang === "ar" ? `تم اختيار ${searchSources.length} من 3 محركات` : `${searchSources.length} of 3 engines selected`}</div>
           {searchStatuses.length > 0 && <div className="research-source-status">{searchStatuses.map(source => <span className={"source-status " + source.status} key={source.id}><i />{source.name}: {source.status === "success" ? (lang === "ar" ? ` ${source.count} نتيجة` : ` ${source.count} results`) : source.status === "empty" ? (lang === "ar" ? " لا توجد نتائج" : " no results") : (lang === "ar" ? " تعذر الاتصال" : " unavailable")}</span>)}</div>}
         </div>
         <form onSubmit={searchPapers} className="research-form">
