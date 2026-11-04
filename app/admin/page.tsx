@@ -71,7 +71,7 @@ export default function AdminPage() {
       {error && <div className="admin-error">{error}</div>}
       <small>لا تشارك كلمة المرور أو تضعها في ملفات المشروع.</small>
     </section> : <>
-      <section className="admin-heading"><div><span className="admin-kicker">PLATFORM OVERVIEW</span><h1>مركز إدارة المنصة</h1><p>تحكم في حالة التشغيل وبوابة الانضمام، مع طلب كلمة المرور مجدداً لكل تغيير.</p></div><button className="admin-logout" onClick={logout}>تسجيل الخروج</button></section>
+      <section className="admin-heading"><div><span className="admin-kicker">PLATFORM OVERVIEW</span><h1>مركز إدارة المنصة</h1><p>تحكم في حالة التشغيل وبوابة الانضمام، واطّلع على أداء المنصة.</p></div><div className="admin-heading-actions"><a className="admin-insights-button" href="https://vercel.com/ilyes-9537/ilyes-b-ai/analytics" target="_blank" rel="noopener noreferrer"><span>↗</span><b>رؤى المنصة</b></a><button className="admin-logout" onClick={logout}>تسجيل الخروج</button></div></section>
       {state && <div className="admin-status-grid">
         <article><span>حالة المنصة</span><b className={state.paused ? "bad" : "good"}>{state.paused ? "متوقفة مؤقتاً" : "تعمل"}</b></article>
         <article><span>وضع الصيانة</span><b className={state.maintenance ? "warn" : "good"}>{state.maintenance ? "مفعّل" : "غير مفعّل"}</b></article>
