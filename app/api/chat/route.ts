@@ -181,11 +181,7 @@ async function askGroq(messages: Msg[]) {
 }
 
 async function ask(provider: Provider, messages: Msg[]) {
-  if (provider === "openai") return askOpenAI(messages);
-  if (provider === "claude") return askClaude(messages);
-  if (provider === "gemini") return askGemini(messages);
-  if (provider === "groq") return askGroq(messages);
-  return askDeepseek(messages);
+  return provider === "gemini" ? askGemini(messages) : askGroq(messages);
 }
 
 async function askHybrid(messages: Msg[]) {
