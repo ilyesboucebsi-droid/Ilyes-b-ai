@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 type Msg = { role: "user" | "assistant"; content: string; images?: string[] };
 type Provider = "openai" | "claude" | "gemini" | "groq" | "deepseek";
-const PROVIDERS: Provider[] = ["openai", "claude", "gemini", "groq", "deepseek"];
+const PROVIDERS: Provider[] = ["gemini", "groq"];
 
 const SYSTEM_INSTRUCTION = [
   "أنت ILYES AI، مساعد عربي/إنجليزي متعدد المجالات. أجب بلغة المستخدم، بدقة ووضوح، وبنبرة طبيعية محترمة. لا تدّعِ أنك إنسان أو تملك تجارب شخصية.",
@@ -106,14 +106,14 @@ function isConfigured(provider: Provider) {
 async function checkLimit(req: NextRequest): Promise<"allowed" | "limited" | "unavailable"> {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return "unavailable";
+  if (!url || !token) return "allowed";
   try {
     const redis = new Redis({ url, token });
     const limiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(12, "1 m"), prefix: "ilyesb:chat" });
     const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "unknown";
     return (await limiter.limit(ip)).success ? "allowed" : "limited";
   } catch {
-    return "unavailable";
+    return "allowed";
   }
 }
 
@@ -133,7 +133,7 @@ function isOpenAIBillingExhausted(error: unknown) {
 
 async function enrichWithConsensus(messages: Msg[]): Promise<{ messages: Msg[]; papers: any[]; used: boolean }> {
   const last = messages[messages.length - 1];
-  const key = process.env.CONSENSUS_API_KEY || process.env.consensus_api_key;
+  const key = undefined; // لا نستدعي خدمة مدفوعة؛ البحث الأكاديمي المجاني متاح في /api/research.
   const q = last?.content?.trim() || "";
   // لا نستدعي Consensus لكل سؤال عام؛ نستخدمه عند طلب بحث/مراجع صراحة
   // أو عند طرح سؤال تجريبي/علمي يحتاج إلى إسناد بالدراسات.
@@ -305,64 +305,63 @@ async function askDeepseek(messages: Msg[]) {
 }
 
 async function askHybrid(messages: Msg[]) {
-  // Hybrid is GPT-led by design: never present a peer model's raw draft as a completed collaboration.
-  if (!isConfigured("openai")) {
-    throw new Error("وضع التعاون غير متاح: يجب تهيئة مفتاح OpenAI ليقود المراجعة والدمج النهائي. لم تُعرض إجابة خام من محرك آخر.");
+  // الوضع المجاني: Gemini وGroq فقط، دون أي استدعاء لخدمة مدفوعة.
+  const available = (["gemini", "groq"] as Provider[]).filter(isConfigured);
+  if (!available.length) {
+    throw new Error("لم يتم إعداد أي محرك مجاني بعد. أضف مفتاح Gemini المجاني أو Groq المجاني إلى إعدادات Vercel.");
   }
 
-  const peers = (["claude", "gemini", "groq", "deepseek"] as Provider[]).filter(isConfigured);
-  if (!peers.length) {
-    throw new Error("وضع التعاون يحتاج إلى محرك مساعد واحد على الأقل إلى جانب GPT. تحقق من مفاتيح Claude أو Gemini أو Groq أو DeepSeek.");
-  }
-
-  const results = await Promise.allSettled(peers.map(async (provider) => ({
+  const contributions = await Promise.allSettled(available.map(async provider => ({
     provider,
     reply: await ask(provider, messages)
   })));
-  const contributions = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-  const failures = results.flatMap((result, index) => result.status === "rejected"
-    ? [peers[index] + ": " + (result.reason instanceof Error ? result.reason.message : "تعذر الاتصال")]
+  const drafts = contributions.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
+  const failures = contributions.flatMap((result, index) => result.status === "rejected"
+    ? [available[index] + ": " + (result.reason instanceof Error ? result.reason.message : "تعذر الاتصال")]
     : []);
 
-  if (!contributions.length) {
-    throw new Error("تعذر الحصول على مساهمات من المحركات المساعدة؛ لم يتم إنشاء إجابة Hybrid. " + failures.slice(0, 3).join(" | "));
+  if (!drafts.length) {
+    throw new Error("تعذر الحصول على إجابة من المحركات المجانية. تحقق من الحصص المجانية ومفاتيح Gemini وGroq. " + failures.slice(0, 2).join(" | "));
+  }
+
+  // إذا توفر محرك واحد فقط، نستخدمه مباشرةً دون الادعاء بحدوث تعاون.
+  if (drafts.length === 1) {
+    return { reply: drafts[0].reply, engine: drafts[0].provider, collaboration: { used: false, contributors: [drafts[0].provider], failures } };
   }
 
   const synthesisMessages: Msg[] = [
     ...messages,
-    { role: "user", content: "أنت قائد عملية التعاون والمراجع النهائي. لا تعرض هذه المساهمات كما هي ولا تجمعها آلياً. أعد فحص كل ادعاء من الصفر، وقارن بينها، واستبعد الخطأ والتكرار والتخمين. دقّق أسماء المعاهدات والمنظمات والهيئات والاختصارات والاختصاصات والتواريخ والمصطلحات والأرقام. ميّز الصك القانوني عن المنظمة والجهاز والبرنامج، وميّز القانون الدولي للبحار عن القانون البحري عند الاقتضاء. لا تعتبر تكرار الادعاء دليلاً على صحته، ولا تعتبر الدراسات الأكاديمية مصدراً رسمياً للتشريع أو القضاء. لا تختلق مصدراً أو سنداً أو رقماً. إذا لم تتوفر ثقة كافية في معلومة جوهرية، فاحذفها أو صرّح بحدود التحقق. أجب عن جميع أجزاء سؤال المستخدم في إجابة واحدة متماسكة، بلغة المستخدم وبمستوى التفصيل المطلوب. لا تذكر للمستخدم تفاصيل تقنية عن مساهمات النماذج إلا إذا كانت مفيدة وضرورية.\n\n" +
-      contributions.map((item, index) => "مساهمة " + (index + 1) + " من " + item.provider + ":\n" + item.reply).join("\n\n") }
+    { role: "user", content: "راجع المساهمتين التاليتين مراجعة نقدية مستقلة. لا تجمعهما آلياً: قارن الادعاءات، واستبعد الأخطاء والتكرار والتخمين، ودقق المصطلحات والأرقام والتواريخ. في المسائل القانونية ميّز بين النص التشريعي والرأي الفقهي، ولا تخترع أرقام مواد أو مصادر. أجب عن جميع أجزاء سؤال المستخدم بإجابة واحدة متماسكة وطبيعية.\n\n" +
+      drafts.map((item, index) => "مساهمة " + (index + 1) + " من " + item.provider + ":\n" + item.reply).join("\n\n") }
   ];
 
-  let reply: string;
-  try {
-    reply = await askOpenAI(synthesisMessages);
-  } catch (firstError) {
-    if (isOpenAIBillingExhausted(firstError)) {
-      throw new Error("تعذر إتمام وضع التعاون لأن رصيد OpenAI API نفد أو أن حد الإنفاق للمؤسسة/المشروع قد بلغ نهايته. أضف رصيداً أو راجع حدود الإنفاق في حساب OpenAI المرتبط بمفتاح OPENAI_API_KEY، ثم أعد المحاولة. اشتراك ChatGPT لا يشمل رصيد API. لم تُعرض إجابات المحركات الخام.");
-    }
-    // Retry only transient synthesis failures; never repeat a known billing/quota failure.
+  let reply = "";
+  let synthesisEngine: Provider | null = null;
+  const synthesisOrder: Provider[] = ["gemini", "groq"].filter(p => available.includes(p as Provider)) as Provider[];
+  const synthesisFailures: string[] = [];
+  for (const provider of synthesisOrder) {
     try {
-      reply = await askOpenAI(synthesisMessages);
-    } catch (retryError) {
-      if (isOpenAIBillingExhausted(retryError)) {
-        throw new Error("تعذر إتمام وضع التعاون بسبب نفاد رصيد OpenAI API أو بلوغ حد الإنفاق. أضف رصيداً أو راجع حدود الإنفاق في المؤسسة/المشروع المرتبط بمفتاح OPENAI_API_KEY. لم تُعرض إجابات المحركات الخام.");
-      }
-      const detail = retryError instanceof Error ? retryError.message : firstError instanceof Error ? firstError.message : "خطأ غير معروف";
-      throw new Error("فشل GPT في إتمام المراجعة والدمج النهائي بعد إعادة المحاولة. لم تُعرض إجابات المحركات الخام حفاظاً على الجودة. التفاصيل: " + detail);
+      reply = await ask(provider, synthesisMessages);
+      synthesisEngine = provider;
+      break;
+    } catch (error) {
+      synthesisFailures.push(provider + ": " + (error instanceof Error ? error.message : "تعذر إتمام المراجعة"));
     }
+  }
+  if (!reply || !synthesisEngine) {
+    throw new Error("تعذر إتمام المراجعة النهائية بالمحركات المجانية. لم تُعرض المسودات الخام على أنها إجابة نهائية. " + synthesisFailures.join(" | "));
   }
 
   return {
     reply,
     engine: "hybrid",
-    collaboration: { used: true, contributors: contributions.map(item => item.provider), failures }
+    collaboration: { used: true, contributors: drafts.map(item => item.provider), failures }
   };
 }
 
 async function askAuto(messages: Msg[]) {
   // الوضع التلقائي يبقى سريعاً ويستخدم محركاً واحداً؛ تعاون المحركات متاح بالاختيار الصريح.
-  const order: Provider[] = ["openai", "deepseek", "groq", "gemini", "claude"];
+  const order: Provider[] = ["gemini", "groq"];
   return askFallback(messages, order);
 }
 
@@ -376,7 +375,7 @@ async function askFallback(messages: Msg[], order: Provider[]) {
       failures.push(provider + ": " + (error instanceof Error ? error.message : "تعذر الاتصال"));
     }
   }
-  if (!failures.length) throw new Error("لم يتم إعداد أي محرك. أضف مفتاح OpenAI أو Claude أو Gemini أو Groq أو DeepSeek في إعدادات Vercel.");
+  if (!failures.length) throw new Error("لم يتم إعداد أي محرك مجاني. أضف مفتاح Gemini أو Groq في إعدادات Vercel.");
   throw new Error("تعذر الحصول على إجابة من المحركات المتاحة. " + failures.slice(0, 3).join(" | "));
 }
 
