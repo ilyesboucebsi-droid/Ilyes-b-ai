@@ -2,13 +2,13 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
-type Engine = "auto" | "hybrid" | "openai" | "claude" | "gemini" | "groq";
+type Engine = "auto" | "hybrid" | "openai" | "claude" | "gemini" | "groq" | "deepseek";
 type ChatPaper = { title: string; authors: string; year: string; abstract: string; url: string; doi: string };
 type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[]; consensusUsed?: boolean; consensusPapers?: ChatPaper[]; collaboration?: { used: boolean; contributors: string[]; failures?: string[] } };
 type SearchSource = "consensus" | "semantic_scholar" | "openalex";
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null; sources: SearchSource[] };
 type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty" | "error"; count: number; error: string | null };
-type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq", boolean>; consensus: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
+type Status = { providers: Record<"openai" | "claude" | "gemini" | "groq" | "deepseek", boolean>; consensus: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
 
 function cleanAssistantText(value: string) {
   return value
@@ -314,7 +314,7 @@ export default function Home() {
     rec.start();
   }
 
-  const providerReady = (name: "openai" | "claude" | "gemini" | "groq") => status?.providers?.[name] ?? false;
+  const providerReady = (name: "openai" | "claude" | "gemini" | "groq" | "deepseek") => status?.providers?.[name] ?? false;
   const readyCount = status ? Object.values(status.providers).filter(Boolean).length : 0;
 
   return (
@@ -339,7 +339,7 @@ export default function Home() {
               <option value="openai" disabled={!providerReady("openai")}>OpenAI{providerReady("openai") ? " ✓" : " · غير مهيأ"}</option>
               <option value="claude" disabled={!providerReady("claude")}>Claude{providerReady("claude") ? " ✓" : " · غير مهيأ"}</option>
               <option value="gemini" disabled={!providerReady("gemini")}>Gemini{providerReady("gemini") ? " ✓" : " · غير مهيأ"}</option>
-              <option value="groq" disabled={!providerReady("groq")}>Groq{providerReady("groq") ? " ✓" : " · غير مهيأ"}</option>
+              <option value="groq" disabled={!providerReady("groq")}>Groq{providerReady("groq") ? " ✓" : " · غير مهيأ"}</option>\n              <option value="deepseek" disabled={!providerReady("deepseek")}>DeepSeek{providerReady("deepseek") ? " ✓" : " · غير مهيأ"}</option>
             </select>
           </label>
           <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
@@ -391,7 +391,7 @@ export default function Home() {
             <div className="about-section"><h3>الملكية الفكرية والعلامات التجارية</h3><p>اسم ILYES AI وشعارها وتصميم واجهتها والبرمجيات والمحتوى الأصلي الذي أُنشئ خصيصاً لها عناصر مخصصة للمنصة، وتُحفظ الحقوق المتعلقة بها لصاحب المنصة وفق التشريعات المعمول بها. لا يجوز نسخها أو إعادة نشرها أو استغلالها تجارياً دون إذن مسبق، إلا في الحدود التي يسمح بها القانون.</p><p>أسماء OpenAI وClaude وGemini وGroq وConsensus وشعاراتها وعلاماتها التجارية تعود إلى أصحابها، ويقتصر ذكرها هنا على التعريف بالخدمات المستخدمة، ولا يعني ذلك وجود شراكة أو اعتماد رسمي ما لم يُعلن خلاف ذلك. وتخضع الخدمات الخارجية لشروطها وسياساتها الخاصة.</p><p>يحتفظ المستخدم بحقوقه في المحتوى الذي يقدمه، ويظل مسؤولاً عن امتلاكه حق استخدامه وعن احترام حقوق المؤلف والخصوصية عند رفع النصوص أو الصور أو الوثائق. وينبغي مراجعة شروط مزودي الخدمات بشأن مخرجات الذكاء الاصطناعي قبل استخدامها أو نشرها.</p><p><b>© 2026 ILYES AI — جميع الحقوق محفوظة.</b></p></div>
           </> : <>
             <p className="about-intro">Welcome to ILYES AI. Use this workspace to ask questions, write, learn and discover academic research. No technical experience is required.</p><div className="about-section"><h3>How to get started</h3><ol><li><b>Chat:</b> Type your question in the box at the bottom and send it. Choose an engine or leave Auto selected.</li><li><b>Images:</b> Use the image icon to attach a clear picture and describe what you want to understand.</li><li><b>Voice:</b> Tap the microphone and allow browser access.</li><li><b>Academic research:</b> Open Academic Search, enter a focused research question and submit it.</li></ol></div>
-            <div className="about-section"><h3>1. AI engines</h3><p>These engines understand prompts and generate answers. Available choices may include OpenAI, Gemini and Groq. Claude may also appear when configured. Auto mode selects an available provider; when both OpenAI and Claude are configured, their outputs can be combined. A readiness indicator confirms that a key is configured, not that the provider is always operational.</p></div>
+            <div className="about-section"><h3>1. AI engines</h3><p>These engines understand prompts and generate answers. Available choices may include OpenAI, Gemini, Groq and DeepSeek. Claude may also appear when configured. Auto mode selects an available provider; when both OpenAI and Claude are configured, their outputs can be combined. A readiness indicator confirms that a key is configured, not that the provider is always operational.</p></div>
             <div className="about-section"><h3>2. Academic search and engine merging</h3><p>The platform searches three academic sources: <b>Consensus</b> for research discovery and evidence, <b>Semantic Scholar</b> for papers, authors and citations, and <b>OpenAlex</b> for scholarly works and researchers. Select one source or several, or use Select all to search all three in parallel. The platform combines results, attempts to remove duplicates and labels each paper with its source. OpenAI then analyzes the available metadata and abstracts. A provider may fail while the others still return results. This does not mean every full paper was read; verify original sources before citing them.</p></div>
             <div className="about-section"><h3>3. Where results appear</h3><ol><li>Open Academic Search from the top bar or the Search button beside the composer.</li><li>Enter a focused research question and submit it.</li><li>OpenAI's analysis appears above the results when available.</li><li>Consensus papers appear as cards below, with a link to each paper when available.</li></ol><p>If OpenAI analysis fails, paper results may still appear with an explanatory message. Always verify the paper and its full text before citing it.</p></div>
             <div className="about-note"><b>In short:</b> Use the chat box for questions. In Academic Search, select Consensus, Semantic Scholar and OpenAlex individually or together. Their results are merged and deduplicated where possible, then OpenAI analyzes the available information. Always verify original sources.</div><div className="about-section"><h3>Intellectual property and trademarks</h3><p>The ILYES AI name, logo, interface design, original software and platform-created content are dedicated platform elements. Rights in these materials are reserved to the platform owner under applicable law. Copying, republishing or commercial exploitation requires prior permission, except where permitted by law.</p><p>OpenAI, Claude, Gemini, Groq and Consensus names and marks belong to their respective owners. Their mention identifies third-party services and does not imply partnership or endorsement unless expressly stated. Third-party services remain subject to their own terms and policies.</p><p>Users retain rights in content they submit and are responsible for having permission to use it and for respecting copyright and privacy when uploading materials. Check provider terms before using or publishing AI-generated output.</p><p><b>© 2026 ILYES AI — All rights reserved.</b></p></div>
