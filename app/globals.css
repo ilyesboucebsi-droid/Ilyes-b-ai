@@ -424,3 +424,34 @@ body :is(h1, h2, h3, h4, h5, h6) {
   font-weight: 700 !important;
   line-height: 1.8;
 }
+
+/* Final answer typography contract: Simplified Arabic, 14px body, 16px bold headings, 1.15 line spacing */
+.message-content,
+.message-content :where(p, li, span, strong, b, em, blockquote, code, a),
+.research-analysis-content,
+.chat-sources,
+.message-translation {
+  font-family: "Simplified Arabic" !important;
+  font-size: 14px !important;
+  line-height: 1.15 !important;
+}
+.message-content .message-content-paragraph,
+.message-content p,
+.message-content li {
+  font-family: "Simplified Arabic" !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 1.15 !important;
+}
+.message-content h1,
+.message-content h2,
+.message-content h3,
+.message-content h4,
+.message-content h5,
+.message-content h6,
+.message-content .message-content-heading {
+  font-family: "Simplified Arabic" !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+}
