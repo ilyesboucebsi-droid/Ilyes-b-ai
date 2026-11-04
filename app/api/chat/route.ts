@@ -300,7 +300,16 @@ async function askDeepseek(messages: Msg[]) {
 }
 
 async function askHybrid(messages: Msg[]) {
+  // Hybrid is GPT-led by design: never present a peer model's raw draft as a completed collaboration.
+  if (!isConfigured("openai")) {
+    throw new Error("وضع التعاون غير متاح: يجب تهيئة مفتاح OpenAI ليقود المراجعة والدمج النهائي. لم تُعرض إجابة خام من محرك آخر.");
+  }
+
   const peers = (["claude", "gemini", "groq", "deepseek"] as Provider[]).filter(isConfigured);
+  if (!peers.length) {
+    throw new Error("وضع التعاون يحتاج إلى محرك مساعد واحد على الأقل إلى جانب GPT. تحقق من مفاتيح Claude أو Gemini أو Groq أو DeepSeek.");
+  }
+
   const results = await Promise.allSettled(peers.map(async (provider) => ({
     provider,
     reply: await ask(provider, messages)
@@ -310,35 +319,33 @@ async function askHybrid(messages: Msg[]) {
     ? [peers[index] + ": " + (result.reason instanceof Error ? result.reason.message : "تعذر الاتصال")]
     : []);
 
-  if (contributions.length && isConfigured("openai")) {
+  if (!contributions.length) {
+    throw new Error("تعذر الحصول على مساهمات من المحركات المساعدة؛ لم يتم إنشاء إجابة Hybrid. " + failures.slice(0, 3).join(" | "));
+  }
+
+  const synthesisMessages: Msg[] = [
+    ...messages,
+    { role: "user", content: "أنت قائد عملية التعاون والمراجع النهائي. لا تعرض هذه المساهمات كما هي ولا تجمعها آلياً. أعد فحص كل ادعاء من الصفر، وقارن بينها، واستبعد الخطأ والتكرار والتخمين. دقّق أسماء المعاهدات والمنظمات والهيئات والاختصارات والاختصاصات والتواريخ والمصطلحات والأرقام. ميّز الصك القانوني عن المنظمة والجهاز والبرنامج، وميّز القانون الدولي للبحار عن القانون البحري عند الاقتضاء. لا تعتبر تكرار الادعاء دليلاً على صحته، ولا تعتبر الدراسات الأكاديمية مصدراً رسمياً للتشريع أو القضاء. لا تختلق مصدراً أو سنداً أو رقماً. إذا لم تتوفر ثقة كافية في معلومة جوهرية، فاحذفها أو صرّح بحدود التحقق. أجب عن جميع أجزاء سؤال المستخدم في إجابة واحدة متماسكة، بلغة المستخدم وبمستوى التفصيل المطلوب. لا تذكر للمستخدم تفاصيل تقنية عن مساهمات النماذج إلا إذا كانت مفيدة وضرورية.\n\n" +
+      contributions.map((item, index) => "مساهمة " + (index + 1) + " من " + item.provider + ":\n" + item.reply).join("\n\n") }
+  ];
+
+  let reply: string;
+  try {
+    reply = await askOpenAI(synthesisMessages);
+  } catch (firstError) {
+    // One controlled retry for transient GPT synthesis failures; never leak an unreviewed peer answer.
     try {
-      const synthesisMessages: Msg[] = [
-        ...messages,
-        { role: "user", content: "تولَّ دور المحرر العلمي والمراجع النقدي لا دور جامع النصوص. أعد فحص مساهمات النماذج من الصفر، ولا تفترض أن المعلومة صحيحة لمجرد تكرارها. دقّق أسماء المعاهدات والمنظمات والهيئات والاختصارات والاختصاصات والتواريخ والمصطلحات والأرقام؛ ميّز الصك القانوني عن المنظمة والجهاز والبرنامج. احذف كل ادعاء غير مسند أو صححه، ولا تختلق مصدراً أو سنداً. عالج التناقضات بترجيح ما تدعمه معلومة موثوقة، وإلا صرّح بعدم اليقين. ادمج الصحيح فقط في إجابة واحدة متماسكة، واحتفظ بلغة المستخدم ومستوى التفصيل المطلوب.\n\n" +
-          contributions.map((item, index) => "مساهمة " + (index + 1) + " من " + item.provider + ":\n" + item.reply).join("\n\n") }
-      ];
-      const reply = await askOpenAI(synthesisMessages);
-      return { reply, engine: "hybrid", collaboration: { used: true, contributors: contributions.map(item => item.provider), failures } };
-    } catch (error) {
-      failures.push("openai synthesis: " + (error instanceof Error ? error.message : "تعذر دمج الإجابات"));
+      reply = await askOpenAI(synthesisMessages);
+    } catch (retryError) {
+      const detail = retryError instanceof Error ? retryError.message : firstError instanceof Error ? firstError.message : "خطأ غير معروف";
+      throw new Error("فشل GPT في إتمام المراجعة والدمج النهائي بعد إعادة المحاولة. لم تُعرض إجابات المحركات الخام حفاظاً على الجودة. التفاصيل: " + detail);
     }
-  } else if (!isConfigured("openai")) {
-    failures.push("openai: مفتاح OpenAI غير مهيأ");
   }
 
-  if (contributions.length) {
-    const chosen = contributions[0];
-    return {
-      reply: chosen.reply + "\n\nملاحظة: تعذر إتمام الدمج النهائي بواسطة GPT، لذلك عُرض رد " + chosen.provider + " مباشرةً كخطة احتياطية.",
-      engine: chosen.provider,
-      collaboration: { used: false, contributors: contributions.map(item => item.provider), failures }
-    };
-  }
-
-  const fallback = await askFallback(messages, ["deepseek", "groq", "gemini", "claude", "openai"]);
   return {
-    ...fallback,
-    collaboration: { used: false, contributors: [], failures: [...failures, "لم تنجح أي مساهمة مستقلة؛ استُخدم محرك احتياطي واحد."] }
+    reply,
+    engine: "hybrid",
+    collaboration: { used: true, contributors: contributions.map(item => item.provider), failures }
   };
 }
 
