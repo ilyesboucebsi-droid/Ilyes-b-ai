@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   },
   description: siteDescription,
   applicationName: siteName,
+  verification: {
+    google: "bEi3QqBPrE-SQ9Rrs-jueNe_7nR0mMhxunzRYbk9484"
+  },
   keywords: [
     "ILYES AI", "الذكاء الاصطناعي", "البحث الأكاديمي", "مساعد أكاديمي",
     "البحث العلمي", "تحليل النصوص", "مصادر علمية", "طلاب الجامعات",
