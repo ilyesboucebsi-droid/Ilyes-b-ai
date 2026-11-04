@@ -400,7 +400,7 @@ export default function Home() {
       </div>}
 
       <section className="status-row" aria-live="polite">
-        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + "/4 جاهزة" : readyCount + " of 4 engines configured") : (lang === "ar" ? "جارٍ الفحص…" : "Checking services…")}</span>
+        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + "/5 جاهزة" : readyCount + " of 5 engines configured") : (lang === "ar" ? "جارٍ الفحص…" : "Checking services…")}</span>
         <span className="status-note">{status ? (status.consensus ? (lang === "ar" ? "البحث جاهز" : "Academic search configured") : (lang === "ar" ? "البحث غير مهيأ" : "Academic search not configured")) : (lang === "ar" ? "جارٍ التحقق" : "This may take a moment")}</span>
       </section>
 
