@@ -15,7 +15,7 @@ const SYSTEM_INSTRUCTION = [
   "1. لا تختلق مصادر أو مراجع أو روابط أو اقتباسات أو أرقام مواد أو تواريخ أو إحصاءات. لا تقل إنك بحثت أو تحققت أو استخدمت أداة إلا إذا حدث ذلك فعلاً في الطلب الحالي.",
   "2. لا تذكر تاريخاً لتحديث بيانات تدريبك ولا تدّعِ أن معلوماتك محدثة حتى تاريخ معين ما لم تكن لديك معلومة موثوقة بذلك.",
   "3. ميّز بين المعرفة العامة والاستنتاج والمعلومة التي تم التحقق منها بمصدر مباشر. إذا لم تكن متأكداً، قل ذلك بوضوح وحدد ما يحتاج إلى تحقق.",
-  "4. لا توحِ بأن إجاباتك مستندة تلقائياً إلى Consensus أو إلى دراسات محكمة. المحادثة العادية لا تستدعي Consensus. خدمة Consensus تُستخدم فقط عند استدعاء مسار البحث الأكاديمي في الموقع بنجاح؛ عند سؤال المستخدم، اشرح هذا الفرق بدقة.",
+  "4. لا توحِ بأن إجاباتك مستندة تلقائياً إلى Consensus أو إلى دراسات محكمة. المحادثة العادية لا تستدعي Consensus. عند إرفاق نتائج Consensus فعلياً في سياق السؤال، ادمج الأدلة المناسبة في صلب الإجابة مع إحالات رقمية [1] [2] تطابق الدراسات المعروضة أسفلها؛ لا تضع إحالات شكلية ولا تستشهد بدراسة لم تعتمد عليها. خدمة Consensus لا تُستخدم إلا للأسئلة العلمية/التجريبية التي تحتاج إلى إسناد أو عندما يطلب المستخدم البحث والمراجع صراحة.",
   "5. لا تصف Consensus بأنه إجماع الخبراء عندما يكون المقصود خدمة البحث الأكاديمي المسماة Consensus. ولا تقل إنك استخدمت الخدمة في إجابة سابقة ما لم تكن قد استُدعيت فعلياً.",
   "6. عند سؤال المستخدم هل يثق بإجاباتك، قل إنك أداة مساعدة قد تخطئ أو تقدم معلومات غير محدثة، وإن درجة التحقق تعتمد على نوع السؤال والمصادر التي استُخدمت. لا تدّعِ دقة 100%.",
   "القانون والتحليل القانوني:",
@@ -117,7 +117,12 @@ async function enrichWithConsensus(messages: Msg[]): Promise<{ messages: Msg[]; 
   const last = messages[messages.length - 1];
   const key = process.env.CONSENSUS_API_KEY || process.env.consensus_api_key;
   const q = last?.content?.trim() || "";
-  const relevant = q.length >= 35 && /[؟?]|ما هو|ما هي|لماذا|كيف|هل|اشرح|حلل|قارن|ناقش|دراسة|دراسات|بحث|أبحاث|علمي|أكاديمي|تأثير|فعالية|أسباب|نتائج|research|study|evidence|effect|impact|analysis|legal|law/i.test(q);
+  // لا نستدعي Consensus لكل سؤال عام؛ نستخدمه عند طلب بحث/مراجع صراحة
+  // أو عند طرح سؤال تجريبي/علمي يحتاج إلى إسناد بالدراسات.
+  const explicitResearch = /دراسات|أبحاث|بحث علمي|مصادر|مراجع|استشهادات|أدلة علمية|دراسة حديثة|مراجعة منهجية|تحليل تلوي|research|studies|scientific sources|references|citations|peer[- ]reviewed|systematic review|meta[- ]analysis|evidence/i.test(q);
+  const scientificTopic = /طب|طبي|صحة|مرض|دواء|علاج|لقاح|تغذية|نفس|نفسي|علم النفس|أحياء|بيولوجيا|وراثة|جينات|فيزياء|كيمياء|فلك|مناخ|بيئة|هندسة|ذكاء اصطناعي|تعلم آلي|علوم|تقنية|إحصاء|اقتصاد تجريبي|medicine|medical|health|disease|drug|treatment|vaccine|nutrition|psychology|biology|genetics|physics|chemistry|astronomy|climate|environment|engineering|artificial intelligence|machine learning|science|technology|statistics/i.test(q);
+  const empiricalIntent = /ما مدى|هل ثبت|هل تؤكد الدراسات|ما evidence|ما الأدلة|ما نتائج|ما تأثير|ما أثر|ما فعالية|ما كفاءة|ما العلاقة|ما أسباب|كيف يؤثر|كيف تعمل|قارن|حلل|قيّم|فسّر|اشرح|what evidence|how effective|what effect|what impact|what causes|how does|compare|analy[sz]e|evaluate|explain/i.test(q);
+  const relevant = explicitResearch || (scientificTopic && empiricalIntent);
   if (!key || !relevant || last?.images?.length) return { messages, papers: [], used: false };
   try {
     const u = new URL("https://api.consensus.app/v1/search");
@@ -139,7 +144,7 @@ async function enrichWithConsensus(messages: Msg[]): Promise<{ messages: Msg[]; 
     const material = papers.map((p: any, i: number) => "[" + (i + 1) + "] " + p.title + " (" + p.year + ") " + p.authors + "\n" + p.abstract + "\n" + (p.url || p.doi)).join("\n\n");
     const enriched = messages.map((m, i) => i === messages.length - 1 ? {
       ...m,
-      content: m.content + "\n\nنتائج بحث أكاديمي مسترجعة آلياً من Consensus. استخدمها فقط إذا كانت ذات صلة، ولا تعتبرها مصدراً رسمياً للقانون أو القضاء، ولا تخترع تفاصيل غير واردة. أشر إلى رقم الدراسة عند الاستناد إليها:\n" + material
+      content: m.content + "\n\nنتائج بحث أكاديمي مسترجعة آلياً من Consensus. ادمج النتائج ذات الصلة داخل الإجابة، ولا تعرضها كقائمة منفصلة داخل متن الإجابة. عند الاستناد إلى نتيجة أو معلومة من دراسة، ضع إحالة رقمية مباشرة بعدها مثل [1] أو [2]، ويجب أن تطابق الإحالة رقم الدراسة في القائمة المرفقة أسفل الإجابة. لا تضع إحالة لدراسة لم تستخدمها فعلياً، ولا تفرض الاستشهاد إذا كانت الدراسة غير مرتبطة بالسؤال. اختم بإشارة موجزة إلى أن تفاصيل الدراسات وروابطها ظاهرة أسفل الإجابة. لا تعتبر هذه الدراسات مصدراً رسمياً للقانون أو القضاء، ولا تخترع تفاصيل غير واردة. إذا لم تضف الدراسات دليلاً مفيداً، أجب دون الاستناد إليها:\n" + material
     } : m);
     return { messages: enriched, papers, used: true };
   } catch {
