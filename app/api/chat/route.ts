@@ -251,7 +251,8 @@ async function ask(provider: Provider, messages: Msg[]) {
   if (provider === "openai") return askOpenAI(messages);
   if (provider === "claude") return askClaude(messages);
   if (provider === "gemini") return askGemini(messages);
-  return askGroq(messages);
+  if (provider === "groq") return askGroq(messages);
+  return askDeepseek(messages);
 }
 
 async function askDeepseek(messages: Msg[]) {
