@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "عن المنصة",
-  description: "تعرّف على ILYES AI، منصة مفتوحة تجمع أدوات الذكاء الاصطناعي والمحادثة والبحث الأكاديمي لمساعدة الطلاب والباحثين."
+  description: "تعرّف على ILYES AI، منصة مفتوحة تجمع أدوات الذكاء الاصطناعي والمحادثة والبحث الأكاديمي لمساعدة الطلاب والباحثين.",
+  alternates: { canonical: "/about" }
 };
 
 const features = [
