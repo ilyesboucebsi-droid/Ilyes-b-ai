@@ -295,6 +295,7 @@ export default function Home() {
       setPapers(data.papers || []);
       setSearchStatuses(data.sources || []);
       setResearchAnalysis(data.analysis || "");
+      setUsedAnalysisEngine(data.analysisEngine || "");
       setResearchAnalysisError(data.analysisError || "");
       if (!data.papers?.length) setResearchError(lang === "ar" ? "لم تظهر نتائج لهذه العبارة. جرّب كلمات مفتاحية أدق." : "No results found. Try more focused keywords.");
     } catch (e) {
