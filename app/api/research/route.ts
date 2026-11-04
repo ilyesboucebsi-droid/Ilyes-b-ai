@@ -145,40 +145,75 @@ export async function POST(req: NextRequest) {
     }));
 
     let analysis: string | null = null;
+    let analysisEngine: string | null = null;
     let analysisError: string | null = null;
-    const openaiKey = process.env.OPENAI_API_KEY;
-    if (!openaiKey) analysisError = "مفتاح OpenAI غير مضبوط؛ عُرضت نتائج البحث دون تحليل.";
-    else if (papers.length) {
-      try {
-        const sourceMaterial = papers.map((p, i) => [
-          `[${i + 1}] العنوان: ${p.title}`, `المؤلفون: ${p.authors || "غير متاح"}`,
-          `السنة: ${p.year || "غير متاحة"}`, `المجلة: ${p.journal || "غير متاحة"}`,
-          `المصادر: ${p.sources.map(s => SOURCE_LABELS[s]).join("، ")}`,
-          `الملخص: ${(p.abstract || "لا يوجد ملخص متاح.").slice(0, 2200)}`,
-          `DOI: ${p.doi || "غير متاح"}`, `الرابط: ${p.url || "غير متاح"}`
-        ].join("\n")).join("\n\n");
-        const response = await fetch("https://api.openai.com/v1/responses", {
-          method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + openaiKey },
+    if (papers.length) {
+      const sourceMaterial = papers.map((p, i) => [
+        `[${i + 1}] العنوان: ${p.title}`, `المؤلفون: ${p.authors || "غير متاح"}`,
+        `السنة: ${p.year || "غير متاحة"}`, `المجلة: ${p.journal || "غير متاحة"}`,
+        `المصادر: ${p.sources.map(s => SOURCE_LABELS[s]).join("، ")}`,
+        `الملخص: ${(p.abstract || "لا يوجد ملخص متاح.").slice(0, 2200)}`,
+        `DOI: ${p.doi || "غير متاح"}`, `الرابط: ${p.url || "غير متاح"}`
+      ].join("\n")).join("\n\n");
+      const instructions = "أنت مساعد بحث أكاديمي دقيق. حلّل الدراسات المعروضة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن الاتفاق والاختلاف وحدود الأدلة، واستخدم إحالات [1] [2] المطابقة لقائمة الدراسات. لا تختلق بيانات أو مراجع أو استنتاجات. صرّح بنقص الملخصات عند الحاجة. إذا كان السؤال قانونياً، فلا تعتبر الدراسات مصدراً رسمياً للتشريع أو الأحكام، ولا تخترع أرقام مواد أو تنسب إليها أحكاماً غير متحققة. استخدم عربية طبيعية مباشرة.";
+      const input = `سؤال البحث: ${query}\n\nالدراسات التي عثر عليها محركات البحث المحددة:\n${sourceMaterial}\n\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود البيانات المتاحة.`;
+      const openaiKey = process.env.OPENAI_API_KEY;
+      const deepseekKey = process.env.DEEPSEEK_API_KEY;
+      const tryDeepseek = async () => {
+        if (!deepseekKey) throw new Error("مفتاح DeepSeek غير مضبوط.");
+        const response = await fetch("https://api.deepseek.com/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + deepseekKey },
           body: JSON.stringify({
-            model: process.env.OPENAI_MODEL || "gpt-6.1-sol",
-            reasoning: { effort: process.env.OPENAI_REASONING_EFFORT || "low" },
-            instructions: "أنت مساعد بحث أكاديمي دقيق. حلّل الدراسات المعروضة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن الاتفاق والاختلاف وحدود الأدلة، واستخدم إحالات [1] [2] المطابقة لقائمة الدراسات. اذكر مصدر كل دراسة عند الحاجة. لا تختلق بيانات أو مراجع أو استنتاجات. صرّح بنقص الملخصات عند الحاجة. إذا كان السؤال قانونياً، فلا تعتبر الدراسات مصدراً رسمياً للتشريع أو الأحكام، ولا تخترع أرقام مواد أو تنسب إليها أحكاماً غير متحققة. استخدم عربية طبيعية مباشرة.",
-            input: `سؤال البحث: ${query}\n\nالدراسات التي عثر عليها محركات البحث المحددة:\n${sourceMaterial}\n\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود البيانات المتاحة.`,
-            max_output_tokens: 1600
+            model: process.env.DEEPSEEK_MODEL || "deepseek-flash",
+            messages: [{ role: "system", content: instructions }, { role: "user", content: input }],
+            thinking: { type: "enabled" }, reasoning_effort: "high",
+            max_tokens: 6000, stream: false
           }),
-          signal: AbortSignal.timeout(30000)
+          signal: AbortSignal.timeout(45000)
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result?.error?.message || "تعذر إكمال تحليل OpenAI.");
-        const blocks = Array.isArray(result.output) ? result.output.flatMap((item: any) => Array.isArray(item.content) ? item.content : []) : [];
-        const answer = typeof result.output_text === "string" ? result.output_text : blocks.filter((b: any) => b.type === "output_text" && typeof b.text === "string").map((b: any) => b.text).join("\n");
-        if (!answer.trim()) throw new Error("لم يصل رد تحليلي من OpenAI.");
-        analysis = answer.trim();
-      } catch (e) { analysisError = e instanceof Error ? e.message : "تعذر تحليل الدراسات عبر OpenAI."; }
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error?.message || "تعذر إكمال تحليل DeepSeek.");
+        const answer = data?.choices?.[0]?.message?.content;
+        if (typeof answer !== "string" || !answer.trim()) throw new Error("لم يصل رد تحليلي من DeepSeek.");
+        return answer.trim();
+      };
+      if (openaiKey) {
+        try {
+          const response = await fetch("https://api.openai.com/v1/responses", {
+            method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + openaiKey },
+            body: JSON.stringify({
+              model: process.env.OPENAI_MODEL || "gpt-6.1-sol",
+              reasoning: { effort: process.env.OPENAI_REASONING_EFFORT || "low" },
+              instructions, input, max_output_tokens: 1600
+            }),
+            signal: AbortSignal.timeout(30000)
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result?.error?.message || "تعذر إكمال تحليل OpenAI.");
+          const blocks = Array.isArray(result.output) ? result.output.flatMap((item: any) => Array.isArray(item.content) ? item.content : []) : [];
+          const answer = typeof result.output_text === "string" ? result.output_text : blocks.filter((b: any) => b.type === "output_text" && typeof b.text === "string").map((b: any) => b.text).join("\n");
+          if (!answer.trim()) throw new Error("لم يصل رد تحليلي من OpenAI.");
+          analysis = answer.trim();
+          analysisEngine = "openai";
+        } catch (e) {
+          if (deepseekKey) {
+            try { analysis = await tryDeepseek(); analysisEngine = "deepseek"; }
+            catch (fallbackError) { analysisError = (e instanceof Error ? e.message : "تعذر تحليل OpenAI.") + "؛ وتعذر البديل DeepSeek: " + (fallbackError instanceof Error ? fallbackError.message : "خطأ غير معروف"); }
+          } else analysisError = e instanceof Error ? e.message : "تعذر تحليل الدراسات عبر OpenAI.";
+        }
+      } else if (deepseekKey) {
+        try { analysis = await tryDeepseek(); analysisEngine = "deepseek"; }
+        catch (e) { analysisError = e instanceof Error ? e.message : "تعذر تحليل الدراسات عبر DeepSeek."; }
+      } else {
+        analysisError = "لم يتم إعداد مفتاح OpenAI أو DeepSeek؛ عُرضت نتائج البحث دون تحليل.";
+      }
+    } else {
+      analysisError = "لم تُرجع محركات البحث دراسات قابلة للتحليل.";
     }
 
     return NextResponse.json({
-      papers, total: papers.length, analysis, analysisEngine: analysis ? "openai" : null,
+      papers, total: papers.length, analysis, analysisEngine,
       analysisError, sources: sourceStatuses, selectedSources: requested
     });
   } catch (error) {
