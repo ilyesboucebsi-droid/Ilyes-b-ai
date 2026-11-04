@@ -452,8 +452,8 @@ export default function Home() {
           {m.content && !/[\u0600-\u06FF]/.test(m.content) && <div className="message-translation-actions"><button type="button" onClick={() => translateMessage(i, m.content)} disabled={translationBusy !== null}>{translationBusy === i ? "جارٍ الترجمة…" : translations[i] ? "إعادة الترجمة" : "ترجمة إلى العربية"}</button></div>}
           {translations[i] && <div className="message-translation"><div className="translation-label">الترجمة العربية</div><div className="message-content">{renderMessageContent(translations[i])}</div></div>}
           {translationErrors[i] && <div className="inline-error">{translationErrors[i]}</div>}
-          {m.role === "assistant" && m.consensusUsed && <section className="chat-sources" aria-label={lang === "ar" ? "مصادر Consensus" : "Consensus sources"}>
-            <div className="chat-sources-heading"><span className="chat-sources-icon">⌕</span><div><b>{lang === "ar" ? "مصادر البحث من Consensus" : "Consensus research sources"}</b><small>{lang === "ar" ? "تم استدعاء Consensus لهذه الإجابة" : "Consensus was queried for this answer"}</small></div><span className="chat-source-count">{m.consensusPapers?.length || 0}</span></div>
+          {m.role === "assistant" && m.consensusUsed && <section className="chat-sources" aria-label={lang === "ar" ? "مصادر البحث الأكاديمي" : "Academic research sources"}>
+            <div className="chat-sources-heading"><span className="chat-sources-icon">⌕</span><div><b>{lang === "ar" ? "مصادر البحث الأكاديمي" : "Academic research sources"}</b><small>{lang === "ar" ? "تم استدعاء البحث الأكاديمي لهذه الإجابة" : "Academic research was queried for this answer"}</small></div><span className="chat-source-count">{m.consensusPapers?.length || 0}</span></div>
             {m.consensusPapers?.length ? <div className="chat-source-list">{m.consensusPapers.map((paper, paperIndex) => {
               const href = paper.url || (paper.doi ? (paper.doi.startsWith("http") ? paper.doi : "https://doi.org/" + paper.doi) : "");
               return <article className="chat-source-card" key={paperIndex}>
@@ -464,7 +464,7 @@ export default function Home() {
                   {href ? <a href={href} target="_blank" rel="noreferrer">{lang === "ar" ? "فتح الدراسة الأصلية ↗" : "Open original study ↗"}</a> : paper.doi && <small>DOI: {paper.doi}</small>}
                 </div>
               </article>;
-            })}</div> : <p className="chat-sources-empty">{lang === "ar" ? "تم الاتصال بـ Consensus، لكن لم تُرجع الخدمة دراسات قابلة للعرض لهذا السؤال." : "Consensus was queried but returned no displayable papers for this question."}</p>}
+            })}</div> : <p className="chat-sources-empty">{lang === "ar" ? "لم تُرجع خدمة البحث دراسات قابلة للعرض لهذا السؤال." : "The research service returned no displayable papers for this question."}</p>}
             <small className="chat-sources-note">{lang === "ar" ? "هذه مراجع بحثية مسترجعة آلياً؛ تحقّق من بيانات الدراسة ونصها الأصلي قبل الاستشهاد بها." : "Automatically retrieved research references. Verify each paper and its original text before citing."}</small>
           </section>}
           {m.role === "assistant" && <div className="answer-export"><span className="answer-export-label">{lang === "ar" ? "تصدير الإجابة:" : "Export answer:"}</span><button type="button" className="copy-button" onClick={() => copyAnswer(m.content, i)}>{copiedIndex === i ? "✓ " + (lang === "ar" ? "تم النسخ" : "Copied") : "▢ " + (lang === "ar" ? "نسخ" : "Copy")}</button><button type="button" className="copy-button" onClick={() => exportAnswerPdf(m.content)}>PDF</button><button type="button" className="copy-button" onClick={() => exportAnswerWord(m.content)}>Word</button></div>}
