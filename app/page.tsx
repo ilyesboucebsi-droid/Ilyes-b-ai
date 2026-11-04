@@ -68,6 +68,8 @@ export default function Home() {
   const [translationBusy, setTranslationBusy] = useState<number | null>(null);
   const [translations, setTranslations] = useState<Record<number, string>>({});
   const [translationErrors, setTranslationErrors] = useState<Record<number, string>>({});
+  const [ownerSession, setOwnerSession] = useState(false);
+  const [customBackground, setCustomBackground] = useState(false);
 
   useEffect(() => {
     try {
@@ -82,6 +84,8 @@ export default function Home() {
       setHistoryReady(true);
     }
     fetch("/api/status").then(r => r.json()).then(setStatus).catch(() => setStatus(null));
+    fetch("/api/admin/session", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(data => setOwnerSession(Boolean(data?.authenticated))).catch(() => setOwnerSession(false));
+    fetch("/api/background", { cache: "no-store" }).then(response => setCustomBackground(response.ok)).catch(() => setCustomBackground(false));
   }, []);
 
   useEffect(() => {
@@ -320,6 +324,7 @@ export default function Home() {
 
   return (
     <main className="app-shell" dir={lang === "ar" ? "rtl" : "ltr"}>
+      {customBackground && <div className="platform-background" aria-hidden="true" style={{ backgroundImage: "url(/api/background)" }} />}
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <header className="topbar glass">
@@ -348,6 +353,7 @@ export default function Home() {
           <a className="tool-button" href="https://chat.deepseek.com/" target="_blank" rel="noreferrer" title={lang === "ar" ? "فتح DeepSeek المجاني خارج المنصة" : "Open free DeepSeek chat externally"}>DeepSeek ↗</a>
           <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
           <a className="tool-button join-link" href="/join">✦ <span>{lang === "ar" ? "انضم" : "Join"}</span></a>
+          {ownerSession && <a className="tool-button owner-admin-link" href="/admin">⌘ <span>{lang === "ar" ? "الإدارة" : "Admin"}</span></a>}
           
           {messages.length > 0 && <button className="tool-button" onClick={exportConversation}>⇩ <span>{lang === "ar" ? "تصدير المحادثة" : "Export chat"}</span></button>}
           {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); setHistoryNotice(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
