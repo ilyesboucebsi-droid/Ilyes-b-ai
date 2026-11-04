@@ -401,7 +401,7 @@ export default function Home() {
       </div>}
 
       <section className="status-row" aria-live="polite">
-        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + "/2 محركان مجانيان جاهزان" : readyCount + "/2 free engines ready") : (lang === "ar" ? "جارٍ الفحص…" : "Checking services…")}</span>
+        <span className="status-label"><i className={status ? "status-dot online" : "status-dot"} />{status ? (lang === "ar" ? readyCount + "/4 خدمات مهيأة" : readyCount + "/4 services configured") : (lang === "ar" ? "جارٍ الفحص…" : "Checking services…")}</span>
         <span className="status-note">{status ? (status.academicSearch ? (lang === "ar" ? "بحث أكاديمي مجاني" : "Free academic search") : (lang === "ar" ? "البحث غير متاح" : "Academic search unavailable")) : (lang === "ar" ? "جارٍ التحقق" : "This may take a moment")}</span>
       </section>
 
