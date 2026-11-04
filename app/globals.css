@@ -513,3 +513,11 @@ body {
 @media (max-width: 760px) {
   body { background-attachment: scroll, scroll; background-position: center, center top; }
 }
+
+
+/* Active owner-selected background: kept behind the readable application surface. */
+.app-shell{position:relative;isolation:isolate;background:transparent}
+.platform-background{position:fixed;inset:0;z-index:-1;background-position:center;background-size:cover;background-repeat:no-repeat;background-attachment:fixed;pointer-events:none}
+.platform-background::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(5,13,25,.78),rgba(8,17,31,.68) 48%,rgba(5,13,25,.82))}
+.owner-admin-link{border-color:#2b718a!important;background:linear-gradient(120deg,#12394d,#172c50)!important;color:#a8edfa!important;font-weight:800!important}
+@media(max-width:760px){.platform-background{background-attachment:scroll}.platform-background::after{background:rgba(5,13,25,.76)}}
