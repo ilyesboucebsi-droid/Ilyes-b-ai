@@ -6,8 +6,8 @@ import { getPlatformState } from "@/lib/admin";
 export const runtime = "nodejs";
 
 type Msg = { role: "user" | "assistant"; content: string; images?: string[] };
-type Provider = "openai" | "claude" | "gemini" | "groq";
-const PROVIDERS: Provider[] = ["openai", "claude", "gemini", "groq"];
+type Provider = "openai" | "claude" | "gemini" | "groq" | "deepseek";
+const PROVIDERS: Provider[] = ["openai", "claude", "gemini", "groq", "deepseek"];
 
 const SYSTEM_INSTRUCTION = [
   "أنت ILYES AI، مساعد عربي/إنجليزي متعدد المجالات. أجب بلغة المستخدم، بدقة ووضوح، وبنبرة طبيعية محترمة. لا تدّعِ أنك إنسان أو تملك تجارب شخصية.",
@@ -253,8 +253,34 @@ async function ask(provider: Provider, messages: Msg[]) {
   return askGroq(messages);
 }
 
+async function askDeepseek(messages: Msg[]) {
+  const key = process.env.DEEPSEEK_API_KEY;
+  if (!key) throw new Error("مفتاح DeepSeek غير مضبوط في إعدادات الخادم.");
+  const response = await fetch("https://api.deepseek.com/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+    body: JSON.stringify({
+      model: process.env.DEEPSEEK_MODEL || "deepseek-flash",
+      messages: [
+        { role: "system", content: SYSTEM_INSTRUCTION },
+        ...messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) }))
+      ],
+      thinking: { type: "enabled" },
+      reasoning_effort: "high",
+      max_tokens: 6000,
+      stream: false
+    }),
+    signal: AbortSignal.timeout(60000)
+  });
+  const data = await readJson(response);
+  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك DeepSeek."));
+  const answer = data.choices?.[0]?.message?.content || "";
+  if (!answer.trim()) throw new Error("لم يصل رد نصي من DeepSeek.");
+  return answer.trim();
+}
+
 async function askHybrid(messages: Msg[]) {
-  const peers = (["claude", "gemini", "groq"] as Provider[]).filter(isConfigured);
+  const peers = (["claude", "gemini", "groq", "deepseek"] as Provider[]).filter(isConfigured);
   const results = await Promise.allSettled(peers.map(async (provider) => ({
     provider,
     reply: await ask(provider, messages)
@@ -289,7 +315,7 @@ async function askHybrid(messages: Msg[]) {
     };
   }
 
-  const fallback = await askFallback(messages, ["groq", "gemini", "claude", "openai"]);
+  const fallback = await askFallback(messages, ["deepseek", "groq", "gemini", "claude", "openai"]);
   return {
     ...fallback,
     collaboration: { used: false, contributors: [], failures: [...failures, "لم تنجح أي مساهمة مستقلة؛ استُخدم محرك احتياطي واحد."] }
@@ -298,7 +324,7 @@ async function askHybrid(messages: Msg[]) {
 
 async function askAuto(messages: Msg[]) {
   // الوضع التلقائي يبقى سريعاً ويستخدم محركاً واحداً؛ تعاون المحركات متاح بالاختيار الصريح.
-  const order: Provider[] = ["openai", "groq", "gemini", "claude"];
+  const order: Provider[] = ["openai", "deepseek", "groq", "gemini", "claude"];
   return askFallback(messages, order);
 }
 
@@ -312,7 +338,7 @@ async function askFallback(messages: Msg[], order: Provider[]) {
       failures.push(provider + ": " + (error instanceof Error ? error.message : "تعذر الاتصال"));
     }
   }
-  if (!failures.length) throw new Error("لم يتم إعداد أي محرك. أضف مفتاح OpenAI أو Claude أو Gemini أو Groq في إعدادات Vercel.");
+  if (!failures.length) throw new Error("لم يتم إعداد أي محرك. أضف مفتاح OpenAI أو Claude أو Gemini أو Groq أو DeepSeek في إعدادات Vercel.");
   throw new Error("تعذر الحصول على إجابة من المحركات المتاحة. " + failures.slice(0, 3).join(" | "));
 }
 
