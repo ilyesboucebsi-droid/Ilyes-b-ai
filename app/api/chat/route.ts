@@ -400,7 +400,7 @@ export async function POST(req: NextRequest) {
     }
     // إذا تعطل المحرك المختار مؤقتاً، جرّب المحركات المهيأة الأخرى بدلاً من إنهاء المحادثة.
     const research = await enrichWithConsensus(messages);
-    const result = await askFallback(research.messages, [provider, ...PROVIDERS.filter(item => item !== provider)]);
+    const result = await askFallback(research.messages, [provider, ...FREE_PROVIDERS.filter(item => item !== provider)]);
     return NextResponse.json({ ...result, consensusUsed: research.used, consensusPapers: research.papers });
   } catch (error) {
     const message = error instanceof Error ? error.message : "حدث خطأ غير متوقع في الخادم.";
