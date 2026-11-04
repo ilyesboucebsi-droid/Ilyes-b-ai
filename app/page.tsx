@@ -51,7 +51,7 @@ export default function Home() {
   const [researchOpen, setResearchOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [researchQuery, setResearchQuery] = useState("");
-  const [searchSources, setSearchSources] = useState<SearchSource[]>(["semantic_scholar", "openalex"]);
+  const [searchSources, setSearchSources] = useState<SearchSource[]>(["semantic_scholar", "openalex", "consensus"]);
   const [searchStatuses, setSearchStatuses] = useState<SearchStatus[]>([]);
   // Keep each research state declaration on its own source line for valid TSX parsing.
   const [papers, setPapers] = useState<Paper[]>([]);
@@ -410,7 +410,8 @@ export default function Home() {
           <div className="research-engine-options">
             {([
               ["semantic_scholar", "Semantic Scholar", lang === "ar" ? "أوراق علمية ومؤلفون واستشهادات" : "Papers, authors and citations"],
-              ["openalex", "OpenAlex", lang === "ar" ? "فهرس واسع للمنشورات والباحثين" : "Broad index of works and researchers"],\n              ["consensus", "Consensus", lang === "ar" ? "بحث أكاديمي مجاني؛ 3 أوراق لكل بحث دون حساب" : "Free academic search; 3 papers per search without an account"]
+              ["openalex", "OpenAlex", lang === "ar" ? "فهرس واسع للمنشورات والباحثين" : "Broad index of works and researchers"],
+              ["consensus", "Consensus", lang === "ar" ? "بحث أكاديمي مجاني؛ 3 أوراق لكل بحث دون حساب" : "Free academic search; 3 papers per search without an account"]
             ] as [SearchSource, string, string][]).map(([id, name, description]) => <button type="button" role="checkbox" aria-checked={searchSources.includes(id)} className={"research-engine-option " + (searchSources.includes(id) ? "selected" : "")} key={id} onClick={() => setSearchSources(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id])}>
               <span className="research-engine-check" aria-hidden="true">{searchSources.includes(id) ? "✓" : ""}</span>
               <span className="research-engine-copy"><b>{name}</b><small>{description}</small></span>
@@ -433,7 +434,7 @@ export default function Home() {
           <b>{p.title}</b>
           <small>{[p.authors, p.year, p.journal].filter(Boolean).join(" · ")}</small>
           {p.abstract && <p>{p.abstract}</p>}
-          <small>{p.citations !== null ? (lang === "ar" ? "الاستشهادات: " : "Citations: ") + p.citations : ""}{p.doi ? " · DOI: " + p.doi : ""}</small><div className="paper-sources">{(p.sources || []).map(source => <span key={source}>{source === "semantic_scholar" ? "Semantic Scholar" : source === "openalex" ? "OpenAlex" : "Semantic Scholar"}</span>)}</div>
+          <small>{p.citations !== null ? (lang === "ar" ? "الاستشهادات: " : "Citations: ") + p.citations : ""}{p.doi ? " · DOI: " + p.doi : ""}</small><div className="paper-sources">{(p.sources || []).map(source => <span key={source}>{source === "semantic_scholar" ? "Semantic Scholar" : source === "openalex" ? "OpenAlex" : source === "consensus" ? "Consensus" : "Semantic Scholar"}</span>)}</div>
           {p.url && <a href={p.url} target="_blank" rel="noreferrer">{lang === "ar" ? "فتح الدراسة ↗" : "Open paper ↗"}</a>}
         </article>)}</div>}
         <small className="research-footnote">{lang === "ar" ? "تحقّق من بيانات الدراسة والنص الكامل قبل الاستشهاد بها. يعتمد البحث على الخدمات المفتوحة وحصصها المجانية." : "Verify paper details and full text before citing. Search uses open services and their free usage limits."}</small>
