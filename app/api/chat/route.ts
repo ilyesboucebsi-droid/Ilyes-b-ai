@@ -119,9 +119,40 @@ function providerError(data: any, fallback: string) {
   return typeof message === "string" ? message.slice(0, 500) : fallback;
 }
 
+async function consensusRequest(body: unknown, session?: string): Promise<{ data: any; session: string | null }> {
+  const response = await fetch("https://mcp.consensus.app/mcp", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json, text/event-stream", ...(session ? { "Mcp-Session-Id": session } : {}) }, body: JSON.stringify(body), signal: AbortSignal.timeout(18000) });
+  const sid = response.headers.get("Mcp-Session-Id") || session || null;
+  const raw = await response.text(); if (!response.ok) throw new Error("Consensus MCP HTTP " + response.status);
+  const frames = raw.split(/\r?\n/).filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).filter(Boolean);
+  let data: any = {}; for (const frame of frames.reverse()) { try { data = JSON.parse(frame); break; } catch {} }
+  if (!frames.length) { try { data = JSON.parse(raw); } catch {} }
+  return { data, session: sid };
+}
+async function searchConsensusFree(query: string): Promise<any[]> {
+  const init = await consensusRequest({ jsonrpc:"2.0", id:1, method:"initialize", params:{ protocolVersion:"2025-03-26", capabilities:{}, clientInfo:{ name:"ILYES-AI", version:"1.0.0" } } });
+  const session = init.session || undefined;
+  if (session) await consensusRequest({ jsonrpc:"2.0", method:"notifications/initialized", params:{} }, session);
+  const listed = await consensusRequest({ jsonrpc:"2.0", id:2, method:"tools/list", params:{} }, session);
+  const tools = listed.data?.result?.tools || [];
+  const tool = tools.find((x:any)=>x.name==="search") || tools.find((x:any)=>/search/i.test(x.name));
+  if (!tool) throw new Error("Consensus search tool unavailable");
+  const called = await consensusRequest({ jsonrpc:"2.0", id:3, method:"tools/call", params:{ name:tool.name, arguments:{ query } } }, listed.session || session);
+  const result = called.data?.result || {}; let data:any = result.structuredContent || result;
+  for (const item of result.content || []) if (typeof item.text==="string") { try { data=JSON.parse(item.text); break; } catch {} }
+  if (typeof data==="string") { try { data=JSON.parse(data); } catch { data={}; } }
+  const items = Array.isArray(data) ? data : data.papers || data.results || [];
+  return items.slice(0,3).map((p:any)=>({ title:String(p.title||""), authors:Array.isArray(p.authors)?p.authors.map((a:any)=>typeof a==="string"?a:a.name||"").join(", "):String(p.authors||""), year:String(p.year||""), abstract:String(p.abstract||""), url:String(p.url||p.link||""), doi:String(p.doi||"") })).filter((p:any)=>p.title);
+}
 async function enrichWithConsensus(messages: Msg[]): Promise<{ messages: Msg[]; papers: any[]; used: boolean }> {
-  // لا يتم استدعاء خدمات بحث مدفوعة داخل المحادثة؛ البحث الأكاديمي المجاني له واجهة مستقلة.
-  return { messages, papers: [], used: false };
+  const question = messages[messages.length-1]?.content?.trim() || "";
+  if (!/بحث|مصادر|مراجع|دراسات|أبحاث|أوراق علمية|الأدلة العلمية|literature|research|studies|papers|citations|references|evidence/i.test(question) || question.length<12) return { messages, papers:[], used:false };
+  try {
+    const papers=await searchConsensusFree(question); if(!papers.length) return { messages,papers:[],used:false };
+    const evidence=papers.map((p,i)=>"["+(i+1)+"] "+p.title+"\nالمؤلفون: "+(p.authors||"غير متاح")+"\nالسنة: "+(p.year||"غير متاحة")+"\nالملخص: "+(p.abstract||"غير متاح")+"\nالرابط: "+(p.url||"غير متاح")+"\nDOI: "+(p.doi||"غير متاح")).join("\n\n");
+    const augmented=[...messages], last=augmented.length-1;
+    augmented[last]={...augmented[last],content:augmented[last].content+"\n\n[مصادر أكاديمية مسترجعة فعلياً من Consensus. استخدم الدراسات ذات الصلة فقط، وأدرج إحالات [1] [2] عند الاستناد إليها. الدراسات ليست مصدراً رسمياً للقانون.]\n"+evidence};
+    return { messages:augmented,papers,used:true };
+  } catch { return { messages,papers:[],used:false }; }
 }
 
 async function askGemini(messages: Msg[]) {
