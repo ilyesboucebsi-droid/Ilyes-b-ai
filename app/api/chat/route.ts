@@ -6,7 +6,7 @@ import { getPlatformState } from "@/lib/admin";
 export const runtime = "nodejs";
 
 type Msg = { role: "user" | "assistant"; content: string; images?: string[] };
-type Provider = "openai" | "claude" | "gemini" | "groq" | "deepseek";
+type Provider = "gemini" | "groq";
 const PROVIDERS: Provider[] = ["gemini", "groq"];
 
 const SYSTEM_INSTRUCTION = [
@@ -93,14 +93,7 @@ function cleanAssistantReply(value: string) {
 }
 
 function isConfigured(provider: Provider) {
-  const keys: Record<Provider, string | undefined> = {
-    openai: process.env.OPENAI_API_KEY,
-    claude: process.env.ANTHROPIC_API_KEY,
-    gemini: process.env.GEMINI_API_KEY,
-    groq: process.env.GROQ_API_KEY,
-    deepseek: process.env.DEEPSEEK_API_KEY
-  };
-  return Boolean(keys[provider]);
+  return provider === "gemini" ? Boolean(process.env.GEMINI_API_KEY) : Boolean(process.env.GROQ_API_KEY);
 }
 
 async function checkLimit(req: NextRequest): Promise<"allowed" | "limited" | "unavailable"> {
@@ -126,92 +119,9 @@ function providerError(data: any, fallback: string) {
   return typeof message === "string" ? message.slice(0, 500) : fallback;
 }
 
-function isOpenAIBillingExhausted(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || "");
-  return /no credits remaining|credit_balance_exhausted|insufficient_quota|billing.*credit/i.test(message);
-}
-
 async function enrichWithConsensus(messages: Msg[]): Promise<{ messages: Msg[]; papers: any[]; used: boolean }> {
-  const last = messages[messages.length - 1];
-  const key = undefined; // لا نستدعي خدمة مدفوعة؛ البحث الأكاديمي المجاني متاح في /api/research.
-  const q = last?.content?.trim() || "";
-  // لا نستدعي Consensus لكل سؤال عام؛ نستخدمه عند طلب بحث/مراجع صراحة
-  // أو عند طرح سؤال تجريبي/علمي يحتاج إلى إسناد بالدراسات.
-  const explicitResearch = /دراسات|أبحاث|بحث علمي|مصادر علمية|مراجع علمية|اذكر المصادر|اذكر المراجع|استشهد بالدراسات|استشهادات|أدلة علمية|دراسة حديثة|مراجعة منهجية|تحليل تلوي|research|studies|scientific sources|references|citations|peer[- ]reviewed|systematic review|meta[- ]analysis|evidence/i.test(q);
-  const scientificTopic = /طب|طبي|صحة|مرض|دواء|علاج|لقاح|تغذية|نفس|نفسي|علم النفس|أحياء|بيولوجيا|وراثة|جينات|فيزياء|كيمياء|فلك|مناخ|بيئة|هندسة|ذكاء اصطناعي|تعلم آلي|علوم|تقنية|إحصاء|اقتصاد تجريبي|medicine|medical|health|disease|drug|treatment|vaccine|nutrition|psychology|biology|genetics|physics|chemistry|astronomy|climate|environment|engineering|artificial intelligence|machine learning|science|technology|statistics/i.test(q);
-  const empiricalIntent = /ما مدى|هل ثبت|هل تؤكد الدراسات|ما evidence|ما الأدلة|ما نتائج|ما تأثير|ما أثر|ما فعالية|ما كفاءة|ما العلاقة|ما أسباب|كيف يؤثر|كيف تعمل|قارن|حلل|قيّم|فسّر|اشرح|what evidence|how effective|what effect|what impact|what causes|how does|compare|analy[sz]e|evaluate|explain/i.test(q);
-  const relevant = explicitResearch || (scientificTopic && empiricalIntent);
-  if (!key || !relevant || last?.images?.length) return { messages, papers: [], used: false };
-  try {
-    const u = new URL("https://api.consensus.app/v1/search");
-    u.searchParams.set("query", q.slice(0, 500));
-    u.searchParams.set("page_size", "5");
-    const r = await fetch(u.toString(), { headers: { "x-api-key": key, Accept: "application/json" }, signal: AbortSignal.timeout(10000) });
-    if (!r.ok) return { messages, papers: [], used: false };
-    const d = await r.json();
-    const rows = Array.isArray(d) ? d : d.results || d.papers || d.items || d.data || [];
-    const papers = (Array.isArray(rows) ? rows : []).slice(0, 5).map((p: any) => ({
-      title: String(p.title || p.paper_title || p.name || ""),
-      authors: Array.isArray(p.authors) ? p.authors.map((a: any) => typeof a === "string" ? a : a.name || "").join(", ") : String(p.author_names || ""),
-      year: String(p.year || p.publication_year || ""),
-      abstract: String(p.abstract || p.summary || p.snippet || "").slice(0, 1400),
-      url: String(p.url || p.paper_url || p.link || ""),
-      doi: String(p.doi || "")
-    })).filter((p: any) => p.title);
-    if (!papers.length) return { messages, papers: [], used: true };
-    const material = papers.map((p: any, i: number) => "[" + (i + 1) + "] " + p.title + " (" + p.year + ") " + p.authors + "\n" + p.abstract + "\n" + (p.url || p.doi)).join("\n\n");
-    const enriched = messages.map((m, i) => i === messages.length - 1 ? {
-      ...m,
-      content: m.content + "\n\nنتائج بحث أكاديمي مسترجعة آلياً من Consensus. ادمج النتائج ذات الصلة داخل الإجابة، ولا تعرضها كقائمة منفصلة داخل متن الإجابة. عند الاستناد إلى نتيجة أو معلومة من دراسة، ضع إحالة رقمية مباشرة بعدها مثل [1] أو [2]، ويجب أن تطابق الإحالة رقم الدراسة في القائمة المرفقة أسفل الإجابة. لا تضع إحالة لدراسة لم تستخدمها فعلياً، ولا تفرض الاستشهاد إذا كانت الدراسة غير مرتبطة بالسؤال. اختم بإشارة موجزة إلى أن تفاصيل الدراسات وروابطها ظاهرة أسفل الإجابة. لا تعتبر هذه الدراسات مصدراً رسمياً للقانون أو القضاء، ولا تخترع تفاصيل غير واردة. إذا لم تضف الدراسات دليلاً مفيداً، أجب دون الاستناد إليها:\n" + material
-    } : m);
-    return { messages: enriched, papers, used: true };
-  } catch {
-    return { messages, papers: [], used: false };
-  }
-}
-
-async function askOpenAI(messages: Msg[]) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("مفتاح OpenAI غير مضبوط في إعدادات الخادم.");
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-6.1-sol",
-      reasoning: { effort: process.env.OPENAI_REASONING_EFFORT || "medium" },
-      instructions: SYSTEM_INSTRUCTION,
-      input: messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) })),
-      max_output_tokens: 6000
-    }),
-    signal: AbortSignal.timeout(35000)
-  });
-  const data = await readJson(response);
-  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك OpenAI."));
-  const blocks = Array.isArray(data.output) ? data.output.flatMap((item: any) => Array.isArray(item.content) ? item.content : []) : [];
-  const answer = typeof data.output_text === "string" ? data.output_text : blocks.filter((b: any) => b.type === "output_text" && typeof b.text === "string").map((b: any) => b.text).join("\n");
-  if (!answer.trim()) throw new Error("لم يصل رد نصي من OpenAI.");
-  return answer.trim();
-}
-
-async function askClaude(messages: Msg[]) {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("مفتاح Claude غير مضبوط في إعدادات الخادم.");
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({
-      model: process.env.CLAUDE_MODEL || "claude-sonnet-5-5",
-      system: SYSTEM_INSTRUCTION,
-      messages: messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) })),
-      max_tokens: 6000
-    }),
-    signal: AbortSignal.timeout(60000)
-  });
-  const data = await readJson(response);
-  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك Claude."));
-  const answer = Array.isArray(data.content) ? data.content.filter((b: any) => b.type === "text").map((b: any) => b.text || "").join("\n") : "";
-  if (!answer.trim()) throw new Error("لم يصل رد نصي من Claude.");
-  return answer.trim();
+  // لا يتم استدعاء خدمات بحث مدفوعة داخل المحادثة؛ البحث الأكاديمي المجاني له واجهة مستقلة.
+  return { messages, papers: [], used: false };
 }
 
 async function askGemini(messages: Msg[]) {
@@ -276,32 +186,6 @@ async function ask(provider: Provider, messages: Msg[]) {
   if (provider === "gemini") return askGemini(messages);
   if (provider === "groq") return askGroq(messages);
   return askDeepseek(messages);
-}
-
-async function askDeepseek(messages: Msg[]) {
-  const key = process.env.DEEPSEEK_API_KEY;
-  if (!key) throw new Error("مفتاح DeepSeek غير مضبوط في إعدادات الخادم.");
-  const response = await fetch("https://api.deepseek.com/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
-    body: JSON.stringify({
-      model: process.env.DEEPSEEK_MODEL || "deepseek-flash",
-      messages: [
-        { role: "system", content: SYSTEM_INSTRUCTION },
-        ...messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) }))
-      ],
-      thinking: { type: "enabled" },
-      reasoning_effort: "high",
-      max_tokens: 6000,
-      stream: false
-    }),
-    signal: AbortSignal.timeout(60000)
-  });
-  const data = await readJson(response);
-  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك DeepSeek."));
-  const answer = data.choices?.[0]?.message?.content || "";
-  if (!answer.trim()) throw new Error("لم يصل رد نصي من DeepSeek.");
-  return answer.trim();
 }
 
 async function askHybrid(messages: Msg[]) {
