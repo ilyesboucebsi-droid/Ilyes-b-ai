@@ -154,27 +154,6 @@ async function analyzeWithGroq(instructions: string, input: string): Promise<str
   return answer.trim();
 }
 
-async function analyzeWithDeepSeek(instructions: string, input: string): Promise<string> {
-  const key = process.env.DEEPSEEK_API_KEY;
-  if (!key) throw new Error("DeepSeek مدمج في المنصة، لكنه يحتاج إلى تهيئة مفتاح API قبل استخدامه. يمكنك متابعة التحليل مجاناً عبر Gemini أو Groq.");
-  const response = await fetch("https://api.deepseek.com/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
-    body: JSON.stringify({
-      model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
-      messages: [{ role: "system", content: instructions }, { role: "user", content: input }],
-      max_tokens: 3000, temperature: 0.4
-    }),
-    signal: AbortSignal.timeout(45000)
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error?.message || "تعذر تحليل الدراسات عبر DeepSeek.");
-  const answer = data?.choices?.[0]?.message?.content || "";
-  if (!answer.trim()) throw new Error("لم يصل تحليل من DeepSeek.");
-  return answer.trim();
-}
-
-
 export async function POST(req: NextRequest) {
   try {
     try {
@@ -223,17 +202,10 @@ export async function POST(req: NextRequest) {
       ].join("\\n")).join("\\n\\n");
       const instructions = "أنت مساعد بحث أكاديمي دقيق. حلّل الدراسات المعروضة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن الاتفاق والاختلاف وحدود الأدلة، واستخدم إحالات [1] [2] المطابقة لقائمة الدراسات. لا تختلق بيانات أو مراجع أو استنتاجات. صرّح بنقص الملخصات عند الحاجة. إذا كان السؤال قانونياً، فلا تعتبر الدراسات مصدراً رسمياً للتشريع أو الأحكام، ولا تخترع أرقام مواد أو تنسب إليها أحكاماً غير متحققة. استخدم عربية طبيعية مباشرة.";
       const input = "سؤال البحث: " + query + "\\n\\nالدراسات التي عثرت عليها محركات البحث الأكاديمية:\\n" + sourceMaterial + "\\n\\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود البيانات المتاحة.";
-      const requestedEngine = ["auto", "gemini", "groq", "deepseek"].includes(body.analysisEngine) ? body.analysisEngine : "auto";
-      const attempts: Array<{ name: string; run: () => Promise<string> }> = requestedEngine === "deepseek"
-        ? [{ name: "DeepSeek", run: () => analyzeWithDeepSeek(instructions, input) }]
-        : requestedEngine === "gemini"
-          ? [{ name: "Gemini", run: () => analyzeWithGemini(instructions, input) }]
-          : requestedEngine === "groq"
-            ? [{ name: "Groq", run: () => analyzeWithGroq(instructions, input) }]
-            : [
-                { name: "Gemini", run: () => analyzeWithGemini(instructions, input) },
-                { name: "Groq", run: () => analyzeWithGroq(instructions, input) }
-              ];
+      const attempts: Array<{ name: string; run: () => Promise<string> }> = [
+        { name: "Gemini", run: () => analyzeWithGemini(instructions, input) },
+        { name: "Groq", run: () => analyzeWithGroq(instructions, input) }
+      ];
       const errors: string[] = [];
       for (const attempt of attempts) {
         try {
@@ -244,7 +216,7 @@ export async function POST(req: NextRequest) {
           errors.push(attempt.name + ": " + (e instanceof Error ? e.message : "تعذر التحليل"));
         }
       }
-      if (!analysis) analysisError = "تعذر تحليل الدراسات بالمحرك المختار. " + errors.join("؛ ");
+      if (!analysis) analysisError = "تعذر تحليل الدراسات عبر الحصص المجانية المتاحة. " + errors.join("؛ ");
     } else {
       analysisError = "لم تُرجع محركات البحث دراسات قابلة للتحليل.";
     }
