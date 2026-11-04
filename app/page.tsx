@@ -55,8 +55,6 @@ export default function Home() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [researchQuery, setResearchQuery] = useState("");
   const [searchSources, setSearchSources] = useState<SearchSource[]>(["semantic_scholar", "openalex", "consensus"]);
-  const [analysisEngine, setAnalysisEngine] = useState<"auto" | "gemini" | "groq" | "deepseek">("auto");
-  const [usedAnalysisEngine, setUsedAnalysisEngine] = useState("");
   const [searchStatuses, setSearchStatuses] = useState<SearchStatus[]>([]);
   // Keep each research state declaration on its own source line for valid TSX parsing.
   const [papers, setPapers] = useState<Paper[]>([]);
@@ -282,20 +280,18 @@ export default function Home() {
     setResearchError("");
     setResearchAnalysis("");
     setResearchAnalysisError("");
-    setUsedAnalysisEngine("");
     setPapers([]);
     try {
       const res = await fetch("/api/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, sources: searchSources, analysisEngine })
+        body: JSON.stringify({ query, sources: searchSources })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "تعذر تنفيذ البحث الأكاديمي");
       setPapers(data.papers || []);
       setSearchStatuses(data.sources || []);
       setResearchAnalysis(data.analysis || "");
-      setUsedAnalysisEngine(data.analysisEngine || "");
       setResearchAnalysisError(data.analysisError || "");
       if (!data.papers?.length) setResearchError(lang === "ar" ? "لم تظهر نتائج لهذه العبارة. جرّب كلمات مفتاحية أدق." : "No results found. Try more focused keywords.");
     } catch (e) {
@@ -387,19 +383,19 @@ export default function Home() {
               <ol>
                 <li>اضغط «بحث أكاديمي» في الشريط العلوي أو زر «بحث» بجوار مساحة الكتابة.</li>
                 <li>اكتب سؤالاً بحثياً واضحاً، ثم اضغط «ابحث عن دراسات».</li>
-                <li>يظهر تحليل الدراسات بواسطة المحرك الذي اخترته (Gemini أو Groq أو DeepSeek) في أعلى النتائج إذا نجح التحليل.</li>
+                <li>يظهر تحليل الدراسات بواسطة Gemini أو Groq في أعلى النتائج إذا نجح التحليل.</li>
                 <li>تظهر أسفل التحليل بطاقات الدراسات التي جمعتها محركات البحث المختارة، مع بيان مصدر كل دراسة ورابط فتحها عند توفره.</li>
               </ol>
               <p>إذا تعذر التحليل عبر المحركات المجانية، فقد تظل الدراسات ظاهرة مع رسالة توضّح تعذر التحليل. وإذا لم تظهر دراسات، جرّب كلمات مفتاحية أكثر تحديداً. تحقق دائماً من بيانات الدراسة ونصها الكامل قبل الاستشهاد بها في بحث جامعي.</p>
             </div>
-            <div className="about-note"><b>الخلاصة:</b> للمحادثة اكتب سؤالك في مربع الكتابة. وللعثور على مصادر علمية اختر Semantic Scholar وOpenAlex منفردين أو معاً؛ تجمع المنصة النتائج وتحاول إزالة المكرر، ثم يحلل المحرك الذي تختاره (Gemini أو Groq أو DeepSeek) المعلومات المتاحة، وتبقى مراجعة المصادر الأصلية مسؤولية الباحث.</div>
+            <div className="about-note"><b>الخلاصة:</b> للمحادثة اكتب سؤالك في مربع الكتابة. وللعثور على مصادر علمية اختر Semantic Scholar وOpenAlex منفردين أو معاً؛ تجمع المنصة النتائج وتحاول إزالة المكرر، ثم يحلل Gemini أو Groq المعلومات المتاحة، وتبقى مراجعة المصادر الأصلية مسؤولية الباحث.</div>
             <div className="about-section"><h3>الملكية الفكرية والعلامات التجارية</h3><p>اسم ILYES AI وشعارها وتصميم واجهتها والبرمجيات والمحتوى الأصلي الذي أُنشئ خصيصاً لها عناصر مخصصة للمنصة، وتُحفظ الحقوق المتعلقة بها لصاحب المنصة وفق التشريعات المعمول بها. لا يجوز نسخها أو إعادة نشرها أو استغلالها تجارياً دون إذن مسبق، إلا في الحدود التي يسمح بها القانون.</p><p>أسماء Gemini وGroq وSemantic Scholar وOpenAlex وشعاراتها وعلاماتها التجارية تعود إلى أصحابها، ويقتصر ذكرها هنا على التعريف بالخدمات المستخدمة، ولا يعني ذلك وجود شراكة أو اعتماد رسمي ما لم يُعلن خلاف ذلك. وتخضع الخدمات الخارجية لشروطها وسياساتها الخاصة.</p><p>يحتفظ المستخدم بحقوقه في المحتوى الذي يقدمه، ويظل مسؤولاً عن امتلاكه حق استخدامه وعن احترام حقوق المؤلف والخصوصية عند رفع النصوص أو الصور أو الوثائق. وينبغي مراجعة شروط مزودي الخدمات بشأن مخرجات الذكاء الاصطناعي قبل استخدامها أو نشرها.</p><p><b>© 2026 ILYES AI — جميع الحقوق محفوظة.</b></p></div>
           </> : <>
             <p className="about-intro">Welcome to ILYES AI. Use this workspace to ask questions, write, learn and discover academic research. No technical experience is required.</p><div className="about-section"><h3>How to get started</h3><ol><li><b>Chat:</b> Type your question in the box at the bottom and send it. Choose an engine or leave Auto selected.</li><li><b>Images:</b> Use the image icon to attach a clear picture and describe what you want to understand.</li><li><b>Voice:</b> Tap the microphone and allow browser access.</li><li><b>Academic research:</b> Open Academic Search, enter a focused research question and submit it.</li></ol></div>
             <div className="about-section"><h3>1. AI engines</h3><p>The default Auto and collaboration modes use Gemini and Groq. GPT can be selected as the lead model only when OPENAI_API_KEY is configured; GPT + DeepSeek explicitly runs DeepSeek as a reviewer and GPT as final synthesizer. These optional APIs may incur charges and are never called by Auto mode. Do not add keys unless you accept the providers’ pricing.</p></div>
-            <div className="about-section"><h3>2. Academic search and engine merging</h3><p>The platform searches two open academic sources: <b>Semantic Scholar</b> for papers, authors and citations, and <b>OpenAlex</b> for scholarly works and researchers. Select either source or both. The platform combines results, attempts to remove duplicates and labels each paper with its source. You can independently select Gemini, Groq or DeepSeek to analyze the available metadata and abstracts; Auto uses Gemini then Groq only. A provider may fail while the search results still appear. DeepSeek is an optional API-based choice and is never called automatically; Auto uses Gemini then Groq. This does not mean every full paper was read; verify original sources before citing them.</p></div>
-            <div className="about-section"><h3>3. Where results appear</h3><ol><li>Open Academic Search from the top bar or the Search button beside the composer.</li><li>Enter a focused research question and submit it.</li><li>The selected Gemini, Groq or DeepSeek analysis appears above the results when available.</li><li>Research papers appear as cards below, with a link to each paper when available.</li></ol><p>If the selected AI analysis fails, paper results may still appear with an explanatory message. DeepSeek requires its own optional API configuration; the free Auto path remains Gemini then Groq. Always verify the paper and its full text before citing it.</p></div>
-            <div className="about-note"><b>In short:</b> Use the chat box for questions. In Academic Search, select Semantic Scholar and OpenAlex individually or together. Their results are merged and deduplicated where possible, then your selected Gemini, Groq or DeepSeek engine analyzes the available information. Auto uses Gemini then Groq. Always verify original sources.</div><div className="about-section"><h3>Intellectual property and trademarks</h3><p>The ILYES AI name, logo, interface design, original software and platform-created content are dedicated platform elements. Rights in these materials are reserved to the platform owner under applicable law. Copying, republishing or commercial exploitation requires prior permission, except where permitted by law.</p><p>Gemini, Groq, DeepSeek, Semantic Scholar and OpenAlex names and marks belong to their respective owners. Their mention identifies third-party services and does not imply partnership or endorsement unless expressly stated. Third-party services remain subject to their own terms and policies.</p><p>Users retain rights in content they submit and are responsible for having permission to use it and for respecting copyright and privacy when uploading materials. Check provider terms before using or publishing AI-generated output.</p><p><b>© 2026 ILYES AI — All rights reserved.</b></p></div>
+            <div className="about-section"><h3>2. Academic search and engine merging</h3><p>The platform searches two open academic sources: <b>Semantic Scholar</b> for papers, authors and citations, and <b>OpenAlex</b> for scholarly works and researchers. Select either source or both. The platform combines results, attempts to remove duplicates and labels each paper with its source. Gemini or Groq then analyzes the available metadata and abstracts. A provider may fail while the search results still appear. Auto uses Gemini then Groq. This does not mean every full paper was read; verify original sources before citing them.</p></div>
+            <div className="about-section"><h3>3. Where results appear</h3><ol><li>Open Academic Search from the top bar or the Search button beside the composer.</li><li>Enter a focused research question and submit it.</li><li>Gemini or Groq analysis appears above the results when available.</li><li>Research papers appear as cards below, with a link to each paper when available.</li></ol><p>If the selected AI analysis fails, paper results may still appear with an explanatory message. DeepSeek requires its own optional API configuration; the free Auto path remains Gemini then Groq. Always verify the paper and its full text before citing it.</p></div>
+            <div className="about-note"><b>In short:</b> Use the chat box for questions. In Academic Search, select Semantic Scholar and OpenAlex individually or together. Their results are merged and deduplicated where possible, then Gemini or Groq analyzes the available information. Always verify original sources.</div><div className="about-section"><h3>Intellectual property and trademarks</h3><p>The ILYES AI name, logo, interface design, original software and platform-created content are dedicated platform elements. Rights in these materials are reserved to the platform owner under applicable law. Copying, republishing or commercial exploitation requires prior permission, except where permitted by law.</p><p>Gemini, Groq, DeepSeek, Semantic Scholar and OpenAlex names and marks belong to their respective owners. Their mention identifies third-party services and does not imply partnership or endorsement unless expressly stated. Third-party services remain subject to their own terms and policies.</p><p>Users retain rights in content they submit and are responsible for having permission to use it and for respecting copyright and privacy when uploading materials. Check provider terms before using or publishing AI-generated output.</p><p><b>© 2026 ILYES AI — All rights reserved.</b></p></div>
           </>}
         </section>
       </div>}
@@ -430,23 +426,13 @@ export default function Home() {
           <div className="research-merge-note">{lang === "ar" ? `تم اختيار ${searchSources.length} من 3 محركات` : `${searchSources.length} of 3 engines selected`}</div>
           {searchStatuses.length > 0 && <div className="research-source-status">{searchStatuses.map(source => <span className={"source-status " + source.status} key={source.id}><i />{source.name}: {source.status === "success" ? (lang === "ar" ? ` ${source.count} نتيجة` : ` ${source.count} results`) : source.status === "empty" ? (lang === "ar" ? " لا توجد نتائج" : " no results") : (lang === "ar" ? " تعذر الاتصال" : " unavailable")}</span>)}</div>}
         </div>
-        <div className="research-engine-select">
-          <div className="research-engine-heading"><b>{lang === "ar" ? "محرك تحليل الدراسات" : "Research analysis engine"}</b></div>
-          <select className="research-analysis-engine-select" value={analysisEngine} onChange={e => setAnalysisEngine(e.target.value as "auto" | "gemini" | "groq" | "deepseek")} aria-label={lang === "ar" ? "اختيار محرك تحليل الدراسات" : "Choose research analysis engine"}>
-            <option value="auto">{lang === "ar" ? "تلقائي — Gemini ثم Groq (مجاني)" : "Auto — Gemini then Groq (free)"}</option>
-            <option value="gemini">Gemini</option>
-            <option value="groq">Groq</option>
-            <option value="deepseek">{lang === "ar" ? "DeepSeek — يتطلب تهيئة API اختيارية" : "DeepSeek — requires optional API setup"}</option>
-          </select>
-          <small className="research-engine-help">{lang === "ar" ? "يمكنك اختيار أي محرك بصورة مستقلة. اختيار DeepSeek لا يغيّر المسار المجاني ولا يستدعيه تلقائياً." : "Choose any engine independently. DeepSeek is never called automatically and does not change the free path."}</small>
-        </div>
         <form onSubmit={searchPapers} className="research-form">
           <input value={researchQuery} onChange={e => setResearchQuery(e.target.value)} placeholder={lang === "ar" ? "مثال: أثر الذكاء الاصطناعي على المسؤولية المدنية" : "e.g. AI and civil liability"} />
           <button className="primary-button research-merge-button" disabled={researchBusy || researchQuery.trim().length < 3 || searchSources.length === 0}>{researchBusy ? (lang === "ar" ? "جارٍ البحث في المحركات…" : "Searching engines…") : (lang === "ar" ? (searchSources.length > 1 ? "⟷ دمج المحركات والبحث" : "ابحث بهذا المحرك") : (searchSources.length > 1 ? "⟷ Merge engines & search" : "Search this engine"))}</button>
         </form>
         {researchError && <div className="inline-error">{researchError}</div>}
         {researchAnalysis && <section className="research-analysis">
-          <div className="panel-heading"><div><span className="eyebrow">FREE AI ANALYSIS</span><h3>{lang === "ar" ? "تحليل الدراسات" : "Research analysis"}</h3></div><small>{usedAnalysisEngine ? (lang === "ar" ? "المحرك المستخدم: " + (usedAnalysisEngine === "deepseek" ? "DeepSeek" : usedAnalysisEngine === "gemini" ? "Gemini" : "Groq") : "Engine: " + usedAnalysisEngine) : (lang === "ar" ? "مبني على نتائج البحث المفتوح" : "Based on open research results")}</small></div>
+          <div className="panel-heading"><div><span className="eyebrow">FREE AI ANALYSIS</span><h3>{lang === "ar" ? "تحليل الدراسات بالمحركات المجانية" : "Free AI analysis of the studies"}</h3></div><small>{lang === "ar" ? "مبني على نتائج البحث المفتوح" : "Based on open research results"}</small></div>
           <div className="research-analysis-content">{researchAnalysis}</div>
         </section>}
         {researchAnalysisError && papers.length > 0 && <div className="inline-error">{researchAnalysisError}</div>}
