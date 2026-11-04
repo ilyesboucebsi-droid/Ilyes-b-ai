@@ -113,7 +113,8 @@ async function searchConsensus(query: string): Promise<Paper[]> {
   const items=Array.isArray(data)?data:data.papers||data.results||[];
   return items.slice(0,3).map((p:any)=>normalize({title:p.title,authors:p.authors,year:p.year,journal:p.journal,abstract:p.abstract,url:p.url||p.link,doi:p.doi,citations:p.citation_count},"consensus")).filter(Boolean) as Paper[];
 }
-\nasync function analyzeWithGemini(instructions: string, input: string): Promise<string> {
+
+async function analyzeWithGemini(instructions: string, input: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("مفتاح Gemini المجاني غير مضبوط.");
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
