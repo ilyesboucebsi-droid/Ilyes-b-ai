@@ -5,6 +5,7 @@ import "./admin.css";
 type State = { paused: boolean; maintenance: boolean; joinEnabled: boolean; updatedAt: string | null };
 type JoinRequest = { id: string; name: string; email: string; message: string; createdAt: string };
 type Audit = { action: string; at: string };
+type BackgroundSettings = { enabled: boolean; updatedAt: string | null };
 type Analytics = { views7: number; views30: number; unique30: number; pages: { name: string; count: number }[]; referrers: { name: string; count: number }[]; devices: { name: string; count: number }[]; daily: { day: string; views: number }[]; sampleSize: number; updatedAt: string };
 
 export default function AdminPage() {
@@ -14,6 +15,9 @@ export default function AdminPage() {
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [background, setBackground] = useState<BackgroundSettings>({ enabled: false, updatedAt: null });
+  const [backgroundBusy, setBackgroundBusy] = useState(false);
+  const [backgroundError, setBackgroundError] = useState("");
   const [analyticsError, setAnalyticsError] = useState("");
   const [analyticsBusy, setAnalyticsBusy] = useState(false);
   const [action, setAction] = useState("");
@@ -33,14 +37,21 @@ export default function AdminPage() {
     finally { setAnalyticsBusy(false); }
   }, []);
 
+  const loadBackground = useCallback(async () => {
+    const response = await fetch("/api/admin/background", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "تعذر تحميل إعداد الخلفية.");
+    setBackground(data);
+  }, []);
+
   const load = useCallback(async () => {
     const response = await fetch("/api/admin/state", { cache: "no-store" });
     if (response.status === 401) { setLoggedIn(false); return; }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "تعذر تحميل لوحة الإدارة.");
     setState(data.state); setRequests(data.requests || []); setAudit(data.audit || []); setLoggedIn(true);
-    await loadAnalytics();
-  }, [loadAnalytics]);
+    await Promise.all([loadAnalytics(), loadBackground()]);
+  }, [loadAnalytics, loadBackground]);
 
   useEffect(() => { load().catch(e => setError(e.message)); }, [load]);
 
@@ -67,6 +78,51 @@ export default function AdminPage() {
     finally { setBusy(false); }
   }
 
+  async function saveBackgroundFile(file?: File) {
+    if (!file) return;
+    setBackgroundBusy(true); setBackgroundError(""); setNotice("");
+    try {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("الصيغ المدعومة: JPG وPNG وWEBP.");
+      if (file.size > 12 * 1024 * 1024) throw new Error("حجم الصورة الأصلية يتجاوز 12 ميغابايت.");
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("تعذر تجهيز الصورة.");
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("تعذر ضغط الصورة.")), "image/jpeg", 0.82));
+      if (blob.size > 1_200_000) throw new Error("الصورة كبيرة بعد الضغط؛ اختر صورة أصغر.");
+      const image = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("تعذرت قراءة الصورة."));
+        reader.onerror = () => reject(new Error("تعذرت قراءة الصورة."));
+        reader.readAsDataURL(blob);
+      });
+      const response = await fetch("/api/admin/background", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "upload", image }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "تعذر حفظ الخلفية.");
+      setBackground(data);
+      setNotice("تم حفظ الخلفية وتفعيلها للزوار.");
+    } catch (e) {
+      setBackgroundError(e instanceof Error ? e.message : "تعذر تغيير الخلفية.");
+    } finally { setBackgroundBusy(false); }
+  }
+
+  async function setBackgroundEnabled(enabled: boolean) {
+    setBackgroundBusy(true); setBackgroundError(""); setNotice("");
+    try {
+      const response = await fetch("/api/admin/background", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: enabled ? "enable" : "disable" }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "تعذر تغيير إعداد الخلفية.");
+      setBackground(data);
+      setNotice(enabled ? "تم تفعيل الصورة المحفوظة كخلفية." : "تمت العودة إلى الخلفية الأصلية للمنصة.");
+    } catch (e) { setBackgroundError(e instanceof Error ? e.message : "تعذر تغيير إعداد الخلفية."); }
+    finally { setBackgroundBusy(false); }
+  }
+
   async function logout() {
     await fetch("/api/admin/logout", { method: "POST" });
     setLoggedIn(false); setState(null); setNotice("تم تسجيل الخروج.");
@@ -88,6 +144,17 @@ export default function AdminPage() {
       <small>لا تشارك كلمة المرور أو تضعها في ملفات المشروع.</small>
     </section> : <>
       <section className="admin-heading"><div><span className="admin-kicker">PLATFORM OVERVIEW</span><h1>مركز إدارة المنصة</h1><p>تحكم في حالة التشغيل وبوابة الانضمام، واطّلع على أداء المنصة.</p></div><div className="admin-heading-actions"><a className="admin-insights-button" href="#platform-analytics" onClick={(event) => { event.preventDefault(); document.getElementById("platform-analytics")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><span>▤</span><b>رؤى المنصة</b></a><button className="admin-logout" onClick={logout}>تسجيل الخروج</button></div></section>
+      <section className="admin-section background-panel">
+        <div className="admin-section-title"><div><span className="admin-kicker">VISUAL IDENTITY</span><h2>خلفية المنصة</h2><p className="admin-description">ارفع صورة جديدة لتظهر كخلفية هادئة خلف الواجهة، أو ارجع إلى الخلفية الأصلية في أي وقت.</p></div><span className={background.enabled ? "state-chip on" : "state-chip off"}>{background.enabled ? "الصورة المخصصة مفعّلة" : "الخلفية الأصلية مفعّلة"}</span></div>
+        <div className="background-controls">
+          <label className="background-upload"><span>＋</span><b>{backgroundBusy ? "جارٍ تجهيز الخلفية…" : "اختيار صورة جديدة"}</b><small>JPG أو PNG أو WEBP · حتى 12 MB قبل الضغط</small><input type="file" accept="image/jpeg,image/png,image/webp" disabled={backgroundBusy} onChange={event => { const file = event.target.files?.[0]; void saveBackgroundFile(file); event.currentTarget.value = ""; }} /></label>
+          <button className="background-mode-button" type="button" disabled={backgroundBusy || !background.updatedAt || background.enabled} onClick={() => setBackgroundEnabled(true)}>تفعيل الصورة المحفوظة</button>
+          <button className="background-mode-button secondary" type="button" disabled={backgroundBusy || !background.enabled} onClick={() => setBackgroundEnabled(false)}>إبقاء الخلفية الأصلية الحالية</button>
+        </div>
+        {backgroundError && <p className="analytics-error">{backgroundError}</p>}
+        {background.enabled && <div className="background-preview"><img src={"/api/background?v=" + encodeURIComponent(background.updatedAt || "current")} alt="معاينة خلفية المنصة الحالية" /><span>معاينة الصورة النشطة</span></div>}
+        <p className="analytics-footnote">تُحفظ الصورة في قاعدة بيانات المنصة، ولا تحتاج إلى تعديل ملفات الموقع أو إعادة رفعها يدوياً. تظهر التغييرات للزوار بعد تحديث الصفحة.</p>
+      </section>
       <section className="admin-section analytics-panel" id="platform-analytics">
         <div className="admin-section-title"><div><span className="admin-kicker">VISITOR INSIGHTS</span><h2>إحصائيات ورؤى الزوار</h2><p className="admin-description">ملخص مباشر لزيارات المنصة خلال آخر 7 و30 يوماً.</p></div><button className="analytics-refresh" onClick={loadAnalytics} disabled={analyticsBusy}>{analyticsBusy ? "جارٍ التحديث…" : "↻ تحديث الإحصائيات"}</button></div>
         {analyticsError && <p className="analytics-error">{analyticsError}</p>}
