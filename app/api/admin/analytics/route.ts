@@ -14,8 +14,8 @@ export async function GET(req: NextRequest) {
       return d.toISOString().slice(0, 10);
     });
     const counts = await Promise.all(days.map(day => redis.get<number>("ilyesb:analytics:views:" + day)));
-    const views7 = counts.slice(0, 7).reduce((sum, n) => sum + Number(n || 0), 0);
-    const views30 = counts.reduce((sum, n) => sum + Number(n || 0), 0);
+    const views7 = counts.slice(0, 7).reduce<number>((sum, n) => sum + Number(n ?? 0), 0);
+    const views30 = counts.reduce<number>((sum, n) => sum + Number(n ?? 0), 0);
     const unique30 = Number(await redis.scard("ilyesb:analytics:visitors:30d") || 0);
     const raw = await redis.lrange<string>("ilyesb:analytics:events", 0, 4999);
     const events = raw.map(item => {
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       }
       return Array.from(map, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 5);
     };
-    const daily = days.slice(0, 7).reverse().map((day, index) => ({ day, views: Number(counts[6 - index] || 0) }));
+    const daily = days.slice(0, 7).reverse().map((day, index) => ({ day, views: Number(counts[6 - index] ?? 0) }));
     return NextResponse.json({
       views7, views30, unique30, pages: countBy("path"), referrers: countBy("referrer"),
       devices: countBy("device"), daily, sampleSize: events.length, updatedAt: now.toISOString()
