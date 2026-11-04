@@ -5,7 +5,7 @@ import { getPlatformState } from "@/lib/admin";
 
 export const runtime = "nodejs";
 
-type Source = "semantic_scholar" | "openalex";
+type Source = "semantic_scholar" | "openalex" | "consensus";
 type Paper = {
   title: string; authors: string; year: string; journal: string; abstract: string;
   url: string; doi: string; citations: number | null; sources: Source[];
@@ -92,7 +92,27 @@ async function searchOpenAlex(query: string): Promise<Paper[]> {
   }, "openalex")).filter(Boolean) as Paper[];
 }
 
-async function analyzeWithGemini(instructions: string, input: string): Promise<string> {
+async function searchConsensus(query: string): Promise<Paper[]> {
+  const post=async(body:unknown,session?:string)=>{
+    const r=await fetch("https://mcp.consensus.app/mcp",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json, text/event-stream",...(session?{"Mcp-Session-Id":session}:{})},body:JSON.stringify(body),signal:AbortSignal.timeout(18000)});
+    const sid=r.headers.get("Mcp-Session-Id")||session||null, raw=await r.text(); if(!r.ok)throw new Error("Consensus MCP HTTP "+r.status);
+    const frames=raw.split(/\r?\n/).filter(x=>x.startsWith("data:")).map(x=>x.slice(5).trim()).filter(Boolean); let data:any={};
+    for(const frame of frames.reverse()){try{data=JSON.parse(frame);break;}catch{}}
+    if(!frames.length){try{data=JSON.parse(raw);}catch{}}
+    return {data,session:sid};
+  };
+  const init=await post({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2025-03-26",capabilities:{},clientInfo:{name:"ILYES-AI",version:"1.0.0"}}});
+  const session=init.session||undefined; if(session)await post({jsonrpc:"2.0",method:"notifications/initialized",params:{}},session);
+  const listed=await post({jsonrpc:"2.0",id:2,method:"tools/list",params:{}},session), tools=listed.data?.result?.tools||[];
+  const tool=tools.find((x:any)=>x.name==="search")||tools.find((x:any)=>/search/i.test(x.name)); if(!tool)throw new Error("Consensus search unavailable");
+  const called=await post({jsonrpc:"2.0",id:3,method:"tools/call",params:{name:tool.name,arguments:{query}}},listed.session||session);
+  const result=called.data?.result||{}; let data:any=result.structuredContent||result;
+  for(const item of result.content||[])if(typeof item.text==="string"){try{data=JSON.parse(item.text);break;}catch{}}
+  if(typeof data==="string"){try{data=JSON.parse(data);}catch{data={};}}
+  const items=Array.isArray(data)?data:data.papers||data.results||[];
+  return items.slice(0,3).map((p:any)=>normalize({title:p.title,authors:p.authors,year:p.year,journal:p.journal,abstract:p.abstract,url:p.url||p.link,doi:p.doi,citations:p.citation_count},"consensus")).filter(Boolean) as Paper[];
+}
+\nasync function analyzeWithGemini(instructions: string, input: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("مفتاح Gemini المجاني غير مضبوط.");
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -147,7 +167,7 @@ export async function POST(req: NextRequest) {
     const query = typeof body.query === "string" ? body.query.trim() : "";
     if (query.length < 3 || query.length > 500) return NextResponse.json({ error: "اكتب عبارة بحث من 3 إلى 500 حرف." }, { status: 400 });
 
-    const allowed: Source[] = ["semantic_scholar", "openalex"];
+    const allowed: Source[] = ["semantic_scholar", "openalex", "consensus"];
     const requested: Source[] = Array.isArray(body.sources)
       ? allowed.filter(source => body.sources.includes(source))
       : allowed;
@@ -179,7 +199,7 @@ export async function POST(req: NextRequest) {
         "DOI: " + (p.doi || "غير متاح"), "الرابط: " + (p.url || "غير متاح")
       ].join("\\n")).join("\\n\\n");
       const instructions = "أنت مساعد بحث أكاديمي دقيق. حلّل الدراسات المعروضة فقط، وأجب بلغة سؤال المستخدم. قارن النتائج وبيّن الاتفاق والاختلاف وحدود الأدلة، واستخدم إحالات [1] [2] المطابقة لقائمة الدراسات. لا تختلق بيانات أو مراجع أو استنتاجات. صرّح بنقص الملخصات عند الحاجة. إذا كان السؤال قانونياً، فلا تعتبر الدراسات مصدراً رسمياً للتشريع أو الأحكام، ولا تخترع أرقام مواد أو تنسب إليها أحكاماً غير متحققة. استخدم عربية طبيعية مباشرة.";
-      const input = "سؤال البحث: " + query + "\\n\\nالدراسات التي عثر عليها محركا البحث المجانيان:\\n" + sourceMaterial + "\\n\\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود البيانات المتاحة.";
+      const input = "سؤال البحث: " + query + "\\n\\nالدراسات التي عثرت عليها محركات البحث الأكاديمية:\\n" + sourceMaterial + "\\n\\nقدّم تحليلاً نقدياً يستند حصراً إلى المعلومات أعلاه، مع التنبيه إلى حدود البيانات المتاحة.";
       const attempts: Array<{ name: string; run: () => Promise<string> }> = [
         { name: "Gemini", run: () => analyzeWithGemini(instructions, input) },
         { name: "Groq", run: () => analyzeWithGroq(instructions, input) }
