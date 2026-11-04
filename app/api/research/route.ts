@@ -35,7 +35,7 @@ function str(value: unknown): string {
   return "";
 }
 function doiOf(value: unknown): string {
-  return str(value).replace(/^https?:\\/\\/(dx\\.)?doi\\.org\\//i, "").trim().toLowerCase();
+  return str(value).replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").trim().toLowerCase();
 }
 function normalize(p: Partial<Paper>, source: Source): Paper | null {
   const title = str(p.title).trim();
