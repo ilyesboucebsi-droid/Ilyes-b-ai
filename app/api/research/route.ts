@@ -49,7 +49,7 @@ function normalize(p: Partial<Paper>, source: Source): Paper | null {
 function mergePapers(groups: { source: Source; papers: Paper[] }[]): Paper[] {
   const merged = new Map<string, Paper>();
   for (const group of groups) for (const paper of group.papers) {
-    const key = paper.doi ? "doi:" + paper.doi : "title:" + paper.title.toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+    const key = paper.doi ? "doi:" + paper.doi : "title:" + paper.title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
     const old = merged.get(key);
     if (!old) merged.set(key, paper);
     else {
