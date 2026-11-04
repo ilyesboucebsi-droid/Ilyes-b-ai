@@ -348,7 +348,7 @@ export default function Home() {
           <a className="tool-button" href="https://chat.deepseek.com/" target="_blank" rel="noreferrer" title={lang === "ar" ? "فتح DeepSeek المجاني خارج المنصة" : "Open free DeepSeek chat externally"}>DeepSeek ↗</a>
           <button className={"tool-button research-toggle " + (researchOpen ? "active" : "")} onClick={() => setResearchOpen(v => !v)}>⌕ <span>{lang === "ar" ? "بحث أكاديمي" : "Research"}</span></button>
           <a className="tool-button join-link" href="/join">✦ <span>{lang === "ar" ? "انضم" : "Join"}</span></a>
-          <a className="tool-button admin-link" href="/admin">⌘ <span>{lang === "ar" ? "الإدارة" : "Admin"}</span></a>
+          
           {messages.length > 0 && <button className="tool-button" onClick={exportConversation}>⇩ <span>{lang === "ar" ? "تصدير المحادثة" : "Export chat"}</span></button>}
           {messages.length > 0 && <button className="tool-button new-chat" onClick={() => { setMessages([]); setError(""); setHistoryNotice(""); }}>＋ <span>{lang === "ar" ? "محادثة جديدة" : "New chat"}</span></button>}
         </div>
