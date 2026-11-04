@@ -145,7 +145,7 @@ async function searchConsensusFree(query: string): Promise<any[]> {
 }
 async function enrichWithConsensus(messages: Msg[]): Promise<{ messages: Msg[]; papers: any[]; used: boolean }> {
   const question = messages[messages.length-1]?.content?.trim() || "";
-  if (!/بحث|مصادر|مراجع|دراسات|أبحاث|أوراق علمية|الأدلة العلمية|literature|research|studies|papers|citations|references|evidence/i.test(question) || question.length<12) return { messages, papers:[], used:false };
+  if (!/بحث|مصادر|مراجع|دراسات|أبحاث|أوراق علمية|الأدلة العلمية|علمي|علمية|تجريبي|تجريبية|طبي|طبية|صحي|صحية|literature|research|studies|papers|citations|references|evidence/i.test(question) || question.length<12) return { messages, papers:[], used:false };
   try {
     const papers=await searchConsensusFree(question); if(!papers.length) return { messages,papers:[],used:false };
     const evidence=papers.map((p,i)=>"["+(i+1)+"] "+p.title+"\nالمؤلفون: "+(p.authors||"غير متاح")+"\nالسنة: "+(p.year||"غير متاحة")+"\nالملخص: "+(p.abstract||"غير متاح")+"\nالرابط: "+(p.url||"غير متاح")+"\nDOI: "+(p.doi||"غير متاح")).join("\n\n");
