@@ -28,10 +28,12 @@ export const metadata: Metadata = {
     siteName,
     locale: "ar_DZ",
     title: "ILYES AI | منصة الذكاء الاصطناعي والبحث الأكاديمي",
-    description: siteDescription
+    description: siteDescription,
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "ILYES AI - Academic research and artificial intelligence" }]
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
+    images: ["/opengraph-image"],
     title: "ILYES AI | منصة الذكاء الاصطناعي والبحث الأكاديمي",
     description: siteDescription
   },
