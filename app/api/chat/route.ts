@@ -126,6 +126,11 @@ function providerError(data: any, fallback: string) {
   return typeof message === "string" ? message.slice(0, 500) : fallback;
 }
 
+function isOpenAIBillingExhausted(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /no credits remaining|credit_balance_exhausted|insufficient_quota|billing.*credit/i.test(message);
+}
+
 async function enrichWithConsensus(messages: Msg[]): Promise<{ messages: Msg[]; papers: any[]; used: boolean }> {
   const last = messages[messages.length - 1];
   const key = process.env.CONSENSUS_API_KEY || process.env.consensus_api_key;
@@ -333,10 +338,16 @@ async function askHybrid(messages: Msg[]) {
   try {
     reply = await askOpenAI(synthesisMessages);
   } catch (firstError) {
-    // One controlled retry for transient GPT synthesis failures; never leak an unreviewed peer answer.
+    if (isOpenAIBillingExhausted(firstError)) {
+      throw new Error("تعذر إتمام وضع التعاون لأن رصيد OpenAI API نفد أو أن حد الإنفاق للمؤسسة/المشروع قد بلغ نهايته. أضف رصيداً أو راجع حدود الإنفاق في حساب OpenAI المرتبط بمفتاح OPENAI_API_KEY، ثم أعد المحاولة. اشتراك ChatGPT لا يشمل رصيد API. لم تُعرض إجابات المحركات الخام.");
+    }
+    // Retry only transient synthesis failures; never repeat a known billing/quota failure.
     try {
       reply = await askOpenAI(synthesisMessages);
     } catch (retryError) {
+      if (isOpenAIBillingExhausted(retryError)) {
+        throw new Error("تعذر إتمام وضع التعاون بسبب نفاد رصيد OpenAI API أو بلوغ حد الإنفاق. أضف رصيداً أو راجع حدود الإنفاق في المؤسسة/المشروع المرتبط بمفتاح OPENAI_API_KEY. لم تُعرض إجابات المحركات الخام.");
+      }
       const detail = retryError instanceof Error ? retryError.message : firstError instanceof Error ? firstError.message : "خطأ غير معروف";
       throw new Error("فشل GPT في إتمام المراجعة والدمج النهائي بعد إعادة المحاولة. لم تُعرض إجابات المحركات الخام حفاظاً على الجودة. التفاصيل: " + detail);
     }
