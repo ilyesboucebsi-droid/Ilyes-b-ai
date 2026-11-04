@@ -501,3 +501,15 @@ body :is(h1, h2, h3, h4, h5, h6) {
   .left-tools .language-toggle,
   .left-tools .about-toggle { min-width: 48px !important; font-size: 10px !important; }
 }
+
+/* Optional owner-managed photographic background: preserve contrast and readability. */
+body {
+  background-image: linear-gradient(125deg, rgba(5, 12, 23, .84), rgba(7, 16, 30, .90)), url("/api/background");
+  background-position: center, center 22%;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: fixed, fixed;
+}
+@media (max-width: 760px) {
+  body { background-attachment: scroll, scroll; background-position: center, center top; }
+}
