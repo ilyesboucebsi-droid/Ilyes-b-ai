@@ -2,13 +2,13 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
-type Engine = "auto" | "hybrid" | "gemini" | "groq";
+type Engine = "auto" | "hybrid" | "gemini" | "groq" | "gpt" | "gpt_deepseek" | "deepseek";
 type ChatPaper = { title: string; authors: string; year: string; abstract: string; url: string; doi: string };
 type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[]; consensusUsed?: boolean; consensusPapers?: ChatPaper[]; collaboration?: { used: boolean; contributors: string[]; failures?: string[] } };
 type SearchSource = "semantic_scholar" | "openalex" | "consensus";
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null; sources: SearchSource[] };
 type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty" | "error"; count: number; error: string | null };
-type Status = { providers: Record<"gemini" | "groq", boolean>; academicSearch: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
+type Status = { providers: Record<"gemini" | "groq" | "openai" | "deepseek", boolean>; academicSearch: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
 
 function cleanAssistantText(value: string) {
   return value
@@ -35,7 +35,10 @@ function renderMessageContent(value: string) {
 const ENGINE_LABELS: Record<string, string> = {
   hybrid: "Gemini + Groq · تعاون مجاني",
   gemini: "Gemini",
-  groq: "Groq"
+  groq: "Groq",
+  gpt: "GPT · المحرك القائد",
+  gpt_deepseek: "GPT + DeepSeek",
+  deepseek: "DeepSeek"
 };
 
 export default function Home() {
@@ -312,7 +315,7 @@ export default function Home() {
     rec.start();
   }
 
-  const providerReady = (name: "gemini" | "groq") => status?.providers?.[name] ?? false;
+  const providerReady = (name: "gemini" | "groq" | "openai" | "deepseek") => status?.providers?.[name] ?? false;
   const readyCount = status ? Object.values(status.providers).filter(Boolean).length : 0;
 
   return (
@@ -336,6 +339,9 @@ export default function Home() {
               <option value="hybrid" disabled={!providerReady("gemini") && !providerReady("groq")}>{lang === "ar" ? "تعاون مجاني بين المحركات" : "Free engine collaboration"}{providerReady("gemini") && providerReady("groq") ? " ✓" : ""}</option>
               <option value="gemini" disabled={!providerReady("gemini")}>Gemini{providerReady("gemini") ? " ✓" : " · غير مهيأ"}</option>
               <option value="groq" disabled={!providerReady("groq")}>Groq{providerReady("groq") ? " ✓" : " · غير مهيأ"}</option>
+              <option value="gpt" disabled={!providerReady("openai")}>GPT · المحرك القائد{providerReady("openai") ? " ✓" : " · يتطلب API اختياري"}</option>
+              <option value="gpt_deepseek" disabled={!providerReady("openai") || !providerReady("deepseek")}>GPT يقود + DeepSeek يراجع{providerReady("openai") && providerReady("deepseek") ? " ✓" : " · يتطلب المفتاحين"}</option>
+              <option value="deepseek" disabled={!providerReady("deepseek")}>DeepSeek{providerReady("deepseek") ? " ✓" : " · يتطلب API اختياري"}</option>
 
             </select>
           </label>
@@ -386,7 +392,7 @@ export default function Home() {
             <div className="about-section"><h3>الملكية الفكرية والعلامات التجارية</h3><p>اسم ILYES AI وشعارها وتصميم واجهتها والبرمجيات والمحتوى الأصلي الذي أُنشئ خصيصاً لها عناصر مخصصة للمنصة، وتُحفظ الحقوق المتعلقة بها لصاحب المنصة وفق التشريعات المعمول بها. لا يجوز نسخها أو إعادة نشرها أو استغلالها تجارياً دون إذن مسبق، إلا في الحدود التي يسمح بها القانون.</p><p>أسماء Gemini وGroq وSemantic Scholar وOpenAlex وشعاراتها وعلاماتها التجارية تعود إلى أصحابها، ويقتصر ذكرها هنا على التعريف بالخدمات المستخدمة، ولا يعني ذلك وجود شراكة أو اعتماد رسمي ما لم يُعلن خلاف ذلك. وتخضع الخدمات الخارجية لشروطها وسياساتها الخاصة.</p><p>يحتفظ المستخدم بحقوقه في المحتوى الذي يقدمه، ويظل مسؤولاً عن امتلاكه حق استخدامه وعن احترام حقوق المؤلف والخصوصية عند رفع النصوص أو الصور أو الوثائق. وينبغي مراجعة شروط مزودي الخدمات بشأن مخرجات الذكاء الاصطناعي قبل استخدامها أو نشرها.</p><p><b>© 2026 ILYES AI — جميع الحقوق محفوظة.</b></p></div>
           </> : <>
             <p className="about-intro">Welcome to ILYES AI. Use this workspace to ask questions, write, learn and discover academic research. No technical experience is required.</p><div className="about-section"><h3>How to get started</h3><ol><li><b>Chat:</b> Type your question in the box at the bottom and send it. Choose an engine or leave Auto selected.</li><li><b>Images:</b> Use the image icon to attach a clear picture and describe what you want to understand.</li><li><b>Voice:</b> Tap the microphone and allow browser access.</li><li><b>Academic research:</b> Open Academic Search, enter a focused research question and submit it.</li></ol></div>
-            <div className="about-section"><h3>1. AI engines</h3><p>The platform uses Gemini and Groq through their free usage tiers. Auto mode tries Gemini first and then Groq. Free collaboration asks both engines for drafts and uses one to review and synthesize them. Free quotas and availability are controlled by each provider.</p></div>
+            <div className="about-section"><h3>1. AI engines</h3><p>The default Auto and collaboration modes use Gemini and Groq. GPT can be selected as the lead model only when OPENAI_API_KEY is configured; GPT + DeepSeek explicitly runs DeepSeek as a reviewer and GPT as final synthesizer. These optional APIs may incur charges and are never called by Auto mode. Do not add keys unless you accept the providers’ pricing.</p></div>
             <div className="about-section"><h3>2. Academic search and engine merging</h3><p>The platform searches two open academic sources: <b>Semantic Scholar</b> for papers, authors and citations, and <b>OpenAlex</b> for scholarly works and researchers. Select either source or both. The platform combines results, attempts to remove duplicates and labels each paper with its source. Gemini or Groq then analyzes the available metadata and abstracts. A provider may fail while the others still return results. This does not mean every full paper was read; verify original sources before citing them.</p></div>
             <div className="about-section"><h3>3. Where results appear</h3><ol><li>Open Academic Search from the top bar or the Search button beside the composer.</li><li>Enter a focused research question and submit it.</li><li>Gemini or Groq analysis appears above the results when available.</li><li>Research papers appear as cards below, with a link to each paper when available.</li></ol><p>If free AI analysis fails, paper results may still appear with an explanatory message. Always verify the paper and its full text before citing it.</p></div>
             <div className="about-note"><b>In short:</b> Use the chat box for questions. In Academic Search, select Semantic Scholar and OpenAlex individually or together. Their results are merged and deduplicated where possible, then Gemini or Groq analyzes the available information. Always verify original sources.</div><div className="about-section"><h3>Intellectual property and trademarks</h3><p>The ILYES AI name, logo, interface design, original software and platform-created content are dedicated platform elements. Rights in these materials are reserved to the platform owner under applicable law. Copying, republishing or commercial exploitation requires prior permission, except where permitted by law.</p><p>Gemini, Groq, Semantic Scholar and OpenAlex names and marks belong to their respective owners. Their mention identifies third-party services and does not imply partnership or endorsement unless expressly stated. Third-party services remain subject to their own terms and policies.</p><p>Users retain rights in content they submit and are responsible for having permission to use it and for respecting copyright and privacy when uploading materials. Check provider terms before using or publishing AI-generated output.</p><p><b>© 2026 ILYES AI — All rights reserved.</b></p></div>
@@ -401,7 +407,7 @@ export default function Home() {
 
       {researchOpen && <section className="research-panel glass">
         <div className="panel-heading"><div><span className="eyebrow">ACADEMIC DISCOVERY</span><h2>{lang === "ar" ? "البحث الأكاديمي متعدد المحركات" : "Multi-engine academic search"}</h2></div><button className="close-button" onClick={() => setResearchOpen(false)} aria-label="Close">×</button></div>
-        <p>{lang === "ar" ? "ابحث مجاناً في Semantic Scholar وOpenAlex وConsensus، ثم حلّل الدراسات باستخدام Gemini أو Groq ضمن الحصص المجانية." : "Search Semantic Scholar, OpenAlex and Consensus, then analyze papers with Gemini or Groq within their free quotas."}</p>
+        <p>{lang === "ar" ? "ابحث في Semantic Scholar وOpenAlex وConsensus، ثم حلّل الدراسات بالمحركات المجانية. ويمكن اختيار GPT قائداً وDeepSeek مراجعاً عند تهيئة مفاتيح API اختيارية؛ لا تُستدعى الخدمات المدفوعة تلقائياً." : "Search Semantic Scholar, OpenAlex and Consensus, then analyze papers with free engines. GPT leadership and DeepSeek review are optional and require API keys; paid services are never called automatically."}</p>
         <div className="research-engine-select">
           <div className="research-engine-heading">
             <b>{lang === "ar" ? "محركات البحث الأكاديمي" : "Academic search engines"}</b>
