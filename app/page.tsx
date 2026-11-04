@@ -495,12 +495,12 @@ export default function Home() {
             <button type="button" className="image-button" onClick={() => document.getElementById("image-upload")?.click()} title={lang === "ar" ? "إرفاق صورة" : "Attach image"} aria-label="Attach image">▧</button>
             <button type="button" className="voice-button" onClick={dictate} title={lang === "ar" ? "إملاء صوتي" : "Voice input"} aria-label="Voice input">♩</button>
           </div>
-          <div className="composer-field"><label htmlFor="message-input">{lang === "ar" ? "رسالتك" : "Your message"}</label><textarea id="message-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder={lang === "ar" ? "اكتب سؤالك أو الصق النص هنا…" : "Ask anything or paste your text…"} rows={2} /></div>
+          <div className="composer-field"><label htmlFor="message-input">{lang === "ar" ? "رسالتك" : "Your message"}</label><textarea id="message-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} placeholder={lang === "ar" ? "اكتب سؤالك أو الصق النص هنا…" : "Ask anything or paste your text…"} rows={2} /></div>
           <button className="send-button" disabled={busy || (!input.trim() && !attachedImage)} aria-label="Send">{busy ? "…" : "↑"}</button>
         </form>
         {attachedImage && <div className="attachment-preview"><img src={attachedImage} alt={lang === "ar" ? "معاينة الصورة" : "Image preview"} /><span>{lang === "ar" ? "صورة جاهزة للإرسال" : "Image ready to send"}</span><button type="button" onClick={() => setAttachedImage(null)} aria-label="Remove image">×</button></div>}
         {imageError && <div className="inline-error">{imageError}</div>}
-        <div className="composer-hint"><span>{lang === "ar" ? "Enter للإرسال · Shift + Enter لسطر جديد" : "Enter to send · Shift + Enter for a new line"}</span><span>{lang === "ar" ? "تحقّق من المعلومات المهمة." : "Verify important information."}</span></div>
+        <div className="composer-hint"><span>{lang === "ar" ? "Enter لسطر جديد · Ctrl + Enter للإرسال" : "Enter to send · Shift + Enter for a new line"}</span><span>{lang === "ar" ? "تحقّق من المعلومات المهمة." : "Verify important information."}</span></div>
       </div>
       <footer className="site-footer"><span>© 2026 ILYES AI</span><i>•</i>{lang === "ar" ? "جميع الحقوق محفوظة." : "All rights reserved."}</footer>
     </main>
