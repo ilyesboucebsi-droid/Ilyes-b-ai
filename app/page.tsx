@@ -341,7 +341,7 @@ export default function Home() {
               <option value="groq" disabled={!providerReady("groq")}>Groq{providerReady("groq") ? " ✓" : " · غير مهيأ"}</option>
               <option value="gpt" disabled={!providerReady("openai")}>GPT · المحرك القائد{providerReady("openai") ? " ✓" : " · يتطلب API اختياري"}</option>
               <option value="gpt_deepseek" disabled={!providerReady("openai") || !providerReady("deepseek")}>GPT يقود + DeepSeek يراجع{providerReady("openai") && providerReady("deepseek") ? " ✓" : " · يتطلب المفتاحين"}</option>
-              <option value="deepseek" disabled={!providerReady("deepseek")}>DeepSeek{providerReady("deepseek") ? " ✓" : " · يتطلب API اختياري"}</option>
+              <option value="deepseek">DeepSeek{providerReady("deepseek") ? " ✓ جاهز" : " · مدمج، بانتظار API"}</option>
 
             </select>
           </label>
