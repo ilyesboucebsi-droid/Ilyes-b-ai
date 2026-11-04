@@ -22,13 +22,25 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const loadAnalytics = useCallback(async () => {\n    setAnalyticsBusy(true); setAnalyticsError("");\n    try {\n      const response = await fetch("/api/admin/analytics", { cache: "no-store" });\n      const data = await response.json();\n      if (!response.ok) throw new Error(data.error || "تعذر تحميل الإحصائيات.");\n      setAnalytics(data);\n    } catch (e) { setAnalyticsError(e instanceof Error ? e.message : "تعذر تحميل الإحصائيات."); }\n    finally { setAnalyticsBusy(false); }\n  }, []);\n\n  const load = useCallback(async () => {
+  const loadAnalytics = useCallback(async () => {
+    setAnalyticsBusy(true); setAnalyticsError("");
+    try {
+      const response = await fetch("/api/admin/analytics", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "تعذر تحميل الإحصائيات.");
+      setAnalytics(data);
+    } catch (e) { setAnalyticsError(e instanceof Error ? e.message : "تعذر تحميل الإحصائيات."); }
+    finally { setAnalyticsBusy(false); }
+  }, []);
+
+  const load = useCallback(async () => {
     const response = await fetch("/api/admin/state", { cache: "no-store" });
     if (response.status === 401) { setLoggedIn(false); return; }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "تعذر تحميل لوحة الإدارة.");
-    setState(data.state); setRequests(data.requests || []); setAudit(data.audit || []); setLoggedIn(true);\n    await loadAnalytics();
-  }, []);
+    setState(data.state); setRequests(data.requests || []); setAudit(data.audit || []); setLoggedIn(true);
+    await loadAnalytics();
+  }, [loadAnalytics]);
 
   useEffect(() => { load().catch(e => setError(e.message)); }, [load]);
 
