@@ -84,7 +84,7 @@ export default function Home() {
       setHistoryReady(true);
     }
     fetch("/api/status").then(r => r.json()).then(setStatus).catch(() => setStatus(null));
-    fetch("/api/admin/session", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(data => setOwnerSession(Boolean(data?.authenticated))).catch(() => setOwnerSession(false));
+    fetch("/api/admin/session", { cache: "no-store", credentials: "include" }).then(r => r.ok ? r.json() : null).then(data => setOwnerSession(Boolean(data?.authenticated))).catch(() => setOwnerSession(false));
     fetch("/api/background", { cache: "no-store" }).then(response => setCustomBackground(response.ok)).catch(() => setCustomBackground(false));
   }, []);
 
