@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 const COOKIE_NAME = "ilyesb_admin_session";
 const STATE_KEY = "ilyesb:platform:state";
 const JOIN_KEY = "ilyesb:platform:join-requests";
-const SESSION_SECONDS = 60 * 60 * 8;
+const SESSION_SECONDS = 60 * 60 * 24 * 365;
 
 export type PlatformState = {
   paused: boolean;
