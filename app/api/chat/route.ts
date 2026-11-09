@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 type Msg = { role: "user" | "assistant"; content: string; images?: string[] };
 type Provider = "gemini" | "groq" | "openai" | "claude" | "deepseek";
 const FREE_PROVIDERS: Provider[] = ["gemini", "groq"];
-const PROVIDERS: Provider[] = ["gemini", "groq", "openai", "deepseek"];
+const PROVIDERS: Provider[] = ["gemini", "groq", "openai", "claude", "deepseek"];
 
 const SYSTEM_INSTRUCTION = [
   "أنت ILYES AI، مساعد عربي/إنجليزي متعدد المجالات. أجب بلغة المستخدم، بدقة ووضوح، وبنبرة طبيعية محترمة. لا تدّعِ أنك إنسان أو تملك تجارب شخصية.",
