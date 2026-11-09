@@ -6,7 +6,7 @@ import { getPlatformState } from "@/lib/admin";
 export const runtime = "nodejs";
 
 type Msg = { role: "user" | "assistant"; content: string; images?: string[] };
-type Provider = "gemini" | "groq" | "openai" | "deepseek";
+type Provider = "gemini" | "groq" | "openai" | "claude" | "deepseek";
 const FREE_PROVIDERS: Provider[] = ["gemini", "groq"];
 const PROVIDERS: Provider[] = ["gemini", "groq", "openai", "deepseek"];
 
@@ -97,6 +97,7 @@ function isConfigured(provider: Provider) {
   if (provider === "gemini") return Boolean(process.env.GEMINI_API_KEY);
   if (provider === "groq") return Boolean(process.env.GROQ_API_KEY);
   if (provider === "openai") return Boolean(process.env.OPENAI_API_KEY);
+  if (provider === "claude") return Boolean(process.env.ANTHROPIC_API_KEY);
   return Boolean(process.env.DEEPSEEK_API_KEY);
 }
 
@@ -230,6 +231,34 @@ async function askOpenAI(messages: Msg[]) {
   return answer.trim();
 }
 
+async function askClaude(messages: Msg[]) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("محرك Claude غير مهيأ. أضف ANTHROPIC_API_KEY اختيارياً في إعدادات Vercel.");
+  const model = process.env.CLAUDE_MODEL || "claude-sonnet-5-5";
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2026-10-21"
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 6000,
+      system: SYSTEM_INSTRUCTION,
+      messages: messages.map(m => ({ role: m.role, content: m.content.slice(0, 12000) }))
+    }),
+    signal: AbortSignal.timeout(60000)
+  });
+  const data = await readJson(response);
+  if (!response.ok) throw new Error(providerError(data, "تعذر الاتصال بمحرك Claude."));
+  const answer = Array.isArray(data.content)
+    ? data.content.filter((item: { type?: string; text?: string }) => item.type === "text").map((item: { text?: string }) => item.text || "").join("")
+    : "";
+  if (!answer.trim()) throw new Error("لم يصل رد نصي من Claude.");
+  return answer.trim();
+}
+
 async function askDeepSeek(messages: Msg[]) {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error("محرك DeepSeek غير مهيأ. أضف DEEPSEEK_API_KEY اختيارياً في إعدادات Vercel.");
@@ -249,6 +278,7 @@ async function ask(provider: Provider, messages: Msg[]) {
   if (provider === "gemini") return askGemini(messages);
   if (provider === "groq") return askGroq(messages);
   if (provider === "openai") return askOpenAI(messages);
+  if (provider === "claude") return askClaude(messages);
   return askDeepSeek(messages);
 }
 
@@ -259,6 +289,62 @@ async function askGPTLeader(messages: Msg[], includeDeepSeek: boolean) {
   const review = await askDeepSeek([...messages, { role: "user", content: "قدّم مراجعة نقدية مستقلة لمسودة GPT التالية: حدّد الأخطاء أو النواقص أو الادعاءات غير المسندة، واقترح تصحيحات محددة دون اختلاق مصادر. أعد نقاط المراجعة فقط.\n\nمسودة GPT:\n" + draft }]);
   const final = await askOpenAI([...messages, { role: "user", content: "أنت المحرك القائد. راجع مسودتك التالية وملاحظات DeepSeek، وخذ الصحيح منها فقط، ثم أخرج إجابة نهائية واحدة متماسكة. لا تتبع أي اقتراح غير موثق ولا تخترع مصادر.\n\nمسودتك:\n" + draft + "\n\nمراجعة DeepSeek:\n" + review }]);
   return { reply: final, engine: "gpt", collaboration: { used: true, contributors: ["GPT", "DeepSeek"] } };
+}
+
+async function askOpenAIClaude(messages: Msg[]) {
+  if (!isConfigured("openai") || !isConfigured("claude")) {
+    throw new Error("وضع التعاون OpenAI + Claude يحتاج إلى مفتاحي OPENAI_API_KEY و ANTHROPIC_API_KEY. كلاهما خدمة API مستقلة وقد تكون مدفوعة.");
+  }
+
+  const [gptResult, claudeResult] = await Promise.allSettled([
+    askOpenAI(messages),
+    askClaude(messages)
+  ]);
+
+  if (gptResult.status !== "fulfilled" && claudeResult.status !== "fulfilled") {
+    throw new Error("تعذر الحصول على إجابة من OpenAI وClaude معاً.");
+  }
+
+  const gpt = gptResult.status === "fulfilled" ? gptResult.value : "";
+  const claude = claudeResult.status === "fulfilled" ? claudeResult.value : "";
+
+  if (!gpt || !claude) {
+    return {
+      reply: gpt || claude,
+      engine: gpt ? "openai" : "claude",
+      collaboration: { used: false, contributors: [gpt ? "openai" : "claude"], partial: true }
+    };
+  }
+
+  const synthesisPrompt: Msg[] = [
+    ...messages,
+    {
+      role: "user",
+      content:
+        "أنت الآن المحرر النهائي. لديك مسودتان مستقلتان من OpenAI وClaude. قارن بينهما، واستبعد الأخطاء والتخمين والتكرار، واحتفظ بالمعلومات التي يدعمها التحليل. في المسائل القانونية لا تخترع أرقام مواد أو مصادر، وفي الإجابات الأكاديمية أجب عن جميع أجزاء السؤال. أخرج إجابة واحدة متماسكة وطبيعية دون ذكر أن هناك مسودتين أو محركين.\n\n" +
+        "مسودة OpenAI:\n" + gpt + "\n\nمسودة Claude:\n" + claude
+    }
+  ];
+
+  let finalReply = "";
+  let finalEngine = "";
+  try {
+    finalReply = await askOpenAI(synthesisPrompt);
+    finalEngine = "openai";
+  } catch {
+    finalReply = await askClaude(synthesisPrompt);
+    finalEngine = "claude";
+  }
+
+  return {
+    reply: finalReply,
+    engine: "openai_claude",
+    collaboration: {
+      used: true,
+      contributors: ["openai", "claude"],
+      synthesizer: finalEngine
+    }
+  };
 }
 
 async function askHybrid(messages: Msg[]) {
@@ -379,6 +465,11 @@ export async function POST(req: NextRequest) {
       if (!isConfigured("openai")) return NextResponse.json({ error: "محرك GPT اختياري ويتطلب OPENAI_API_KEY مع تفعيل الفوترة لدى OpenAI. لم يتم استدعاء أي خدمة مدفوعة." }, { status: 503 });
       const research = await enrichWithConsensus(messages);
       const result = await askGPTLeader(research.messages, requested === "gpt_deepseek");
+      return NextResponse.json({ ...result, reply: cleanAssistantReply(result.reply), consensusUsed: research.used, consensusPapers: research.papers });
+    }
+    if (requested === "openai_claude") {
+      const research = await enrichWithConsensus(messages);
+      const result = await askOpenAIClaude(research.messages);
       return NextResponse.json({ ...result, reply: cleanAssistantReply(result.reply), consensusUsed: research.used, consensusPapers: research.papers });
     }
     if (requested === "hybrid") {
