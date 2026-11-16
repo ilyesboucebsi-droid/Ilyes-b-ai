@@ -11,6 +11,7 @@ export async function GET() {
       gemini: Boolean(process.env.GEMINI_API_KEY),
       groq: Boolean(process.env.GROQ_API_KEY),
       openai: Boolean(process.env.OPENAI_API_KEY),
+      claude: Boolean(process.env.ANTHROPIC_API_KEY),
       deepseek: Boolean(process.env.DEEPSEEK_API_KEY)
     },
     academicSearch: true,
