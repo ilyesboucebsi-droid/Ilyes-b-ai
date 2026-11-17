@@ -2,13 +2,13 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
-type Engine = "auto" | "hybrid" | "gemini" | "groq" | "gpt" | "gpt_deepseek" | "deepseek";
+type Engine = "auto" | "hybrid" | "gemini" | "groq" | "gpt" | "gpt_deepseek" | "openai_claude" | "deepseek";
 type ChatPaper = { title: string; authors: string; year: string; abstract: string; url: string; doi: string };
 type Message = { role: "user" | "assistant"; content: string; engine?: string; images?: string[]; consensusUsed?: boolean; consensusPapers?: ChatPaper[]; collaboration?: { used: boolean; contributors: string[]; failures?: string[] } };
 type SearchSource = "semantic_scholar" | "openalex" | "consensus";
 type Paper = { title: string; authors: string; year: string; journal: string; abstract: string; url: string; doi: string; citations: number | null; sources: SearchSource[] };
 type SearchStatus = { id: SearchSource; name: string; status: "success" | "empty" | "error"; count: number; error: string | null };
-type Status = { providers: Record<"gemini" | "groq" | "openai" | "deepseek", boolean>; academicSearch: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
+type Status = { providers: Record<"gemini" | "groq" | "openai" | "claude" | "deepseek", boolean>; academicSearch: boolean; rateLimitConfigured: boolean; joinEnabled?: boolean; paused?: boolean; maintenance?: boolean };
 
 function cleanAssistantText(value: string) {
   return value
@@ -38,6 +38,7 @@ const ENGINE_LABELS: Record<string, string> = {
   groq: "Groq",
   gpt: "GPT · المحرك القائد",
   gpt_deepseek: "GPT + DeepSeek",
+  openai_claude: "OpenAI + Claude · تعاون مزدوج",
   deepseek: "DeepSeek"
 };
 
@@ -319,7 +320,7 @@ export default function Home() {
     rec.start();
   }
 
-  const providerReady = (name: "gemini" | "groq" | "openai" | "deepseek") => status?.providers?.[name] ?? false;
+  const providerReady = (name: "gemini" | "groq" | "openai" | "claude" | "deepseek") => status?.providers?.[name] ?? false;
   const readyCount = status ? Object.values(status.providers).filter(Boolean).length : 0;
 
   return (
@@ -346,6 +347,7 @@ export default function Home() {
               <option value="groq" disabled={!providerReady("groq")}>Groq{providerReady("groq") ? " ✓" : " · غير مهيأ"}</option>
               <option value="gpt" disabled={!providerReady("openai")}>GPT · المحرك القائد{providerReady("openai") ? " ✓" : " · يتطلب API اختياري"}</option>
               <option value="gpt_deepseek" disabled={!providerReady("openai") || !providerReady("deepseek")}>GPT يقود + DeepSeek يراجع{providerReady("openai") && providerReady("deepseek") ? " ✓" : " · يتطلب المفتاحين"}</option>
+              <option value="openai_claude" disabled={!providerReady("openai") || !providerReady("claude")}>{lang === "ar" ? "OpenAI + Claude · تعاون مزدوج" : "OpenAI + Claude · Dual collaboration"}{providerReady("openai") && providerReady("claude") ? " ✓" : " · يتطلب المفتاحين"}</option>
               <option value="deepseek">DeepSeek{providerReady("deepseek") ? " ✓ جاهز" : " · مدمج، بانتظار API"}</option>
 
             </select>
